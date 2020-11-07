@@ -1,0 +1,78 @@
+use crate::parser::{Tok, Expr, Clause};
+use lasso::{Rodeo, Spur};
+
+grammar<'input, 'rodeo>(input: &'input str, rodeo: &'rodeo mut Rodeo);
+
+extern {
+    type Location = usize;
+    type Error = ();
+
+    enum Tok<'input> {
+        "(" => Tok::LParen,
+        ")" => Tok::RParen,
+        "[" => Tok::LBracket,
+        "]" => Tok::RBracket,
+        "|" => Tok::Bar,
+        "=" => Tok::Equals,
+        "." => Tok::Period,
+        "," => Tok::Comma,
+        ":-" => Tok::Turnstile,
+        "_" => Tok::Wildcard,
+        functor => Tok::Functor(<&'input str>),
+        Variable => Tok::Variable(<&'input str>),
+    }
+}
+
+pub Program: Vec<Clause> = Clause*;
+
+Clause: Clause = {
+    <f:Functor> "." => {
+        let (functor, args) = f;
+        Clause { functor, args, conditions: vec![] }
+    },
+    <f:Functor> ":-" <conditions:Exprs> "." => {
+        let (functor, args) = f;
+        Clause { functor, args, conditions }
+    },
+}
+
+// Allow trailing commas bc why not
+Exprs: Vec<Expr> = {
+    <h:(<Expr> ",")*> <t:Expr?> =>
+        h.into_iter().chain(t).collect()
+}
+
+Expr: Expr = {
+    Term,
+    <l:Term> "=" <r:Term> => Expr::Functor {
+        name: rodeo.get_or_intern("="),
+        args: vec![l, r],
+    },
+}
+
+Term: Expr = {
+    Variable => Expr::Var(rodeo.get_or_intern(<>)),
+    Functor => {
+        let (name, args) = <>;
+        Expr::Functor { name, args }
+    },
+    List,
+}
+
+List: Expr = {
+    "[" <es:Exprs> "]" => es.into_iter().rev().fold(
+        Expr::nil(rodeo),
+        |tail, head| Expr::cons(head, tail, rodeo),
+    ),
+
+    "[" <es:Exprs> "|" <t:Expr> "]" => es.into_iter().rev().fold(
+        t,
+        |tail, head| Expr::cons(head, tail, rodeo),
+    ),
+}
+
+Functor: (Spur, Vec<Expr>) = {
+    <f:functor> "(" <args:Exprs> ")" => (rodeo.get_or_intern(f), args),
+    <f:functor> => (rodeo.get_or_intern(f), vec![]),
+}
+

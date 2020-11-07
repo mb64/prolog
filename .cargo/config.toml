@@ -1,0 +1,5 @@
+[build]
+rustflags = ["-Zpolonius"]
+
+[target.'cfg(not(FALSE))']
+rustflags = ["-Zpolonius"]
