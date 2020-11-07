@@ -17,7 +17,7 @@ lalrpop_mod!(parser);
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Logos)]
 pub enum Tok<'a> {
     #[error]
-    #[regex(r"[ \t\f]+", logos::skip)]
+    #[regex(r"[ \t\n\f]+", logos::skip)]
     Error,
 
     #[token("(")]
@@ -84,7 +84,7 @@ pub enum Expr {
 /// An input from the REPL
 /// Unlike a typical Prolog REPL, more like Makam's
 pub enum ReplItem {
-    Clause(Clause),
+    Clauses(Vec<Clause>),
     Question(Expr),
 }
 

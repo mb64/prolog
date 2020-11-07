@@ -26,7 +26,7 @@ extern {
 
 pub Program: Vec<Clause> = Clause*;
 pub ReplItem: ReplItem = {
-    <Clause> => ReplItem::Clause(<>),
+    <Clause*> => ReplItem::Clauses(<>),
     <Question> => ReplItem::Question(<>),
 }
 

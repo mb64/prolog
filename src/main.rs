@@ -3,8 +3,8 @@
 #![allow(mutable_borrow_reservation_conflict)]
 
 use lasso::Rodeo;
+use rustyline::Editor;
 use scoped_map::ScopedMapBase;
-use std::io::{self, prelude::*};
 
 pub mod builtins;
 pub mod parser;
@@ -17,14 +17,19 @@ use state::{Command, VarTable};
 use unify::State;
 
 fn main() {
+    let mut rl = Editor::<()>::new();
+
     let mut ctx = builtins::builtins(Rodeo::default());
     let base_map = ScopedMapBase::new();
 
-    for line in io::stdin().lock().lines() {
-        match parser::parse_repl(&line.unwrap(), &mut ctx.rodeo) {
-            Some(ReplItem::Clause(ast)) => {
-                if let Err(e) = ctx.add_ast_clause(ast) {
-                    println!("Error: {}", e);
+    while let Ok(line) = rl.readline("> ") {
+        rl.add_history_entry(&line);
+        match parser::parse_repl(&line, &mut ctx.rodeo) {
+            Some(ReplItem::Clauses(asts)) => {
+                for ast in asts {
+                    if let Err(e) = ctx.add_ast_clause(ast) {
+                        println!("Error: {}", e);
+                    }
                 }
             }
             Some(ReplItem::Question(ast)) => {
@@ -38,12 +43,14 @@ fn main() {
                     runner: &mut runner,
                 };
                 match state.solve(query) {
-                    Ok(Command::KeepGoing) => println!("No."),
-                    Ok(Command::Stop) => println!("Yes."),
+                    Ok(Command::KeepGoing) => println!("\nNo."),
+                    Ok(Command::Stop) => println!("\nYes."),
                     Err(e) => println!("Error: {:?}", e),
                 }
             }
             None => (),
         }
     }
+
+    println!("\nBye!");
 }
