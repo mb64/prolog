@@ -2,7 +2,8 @@
 
 use crate::parser::Expr;
 use crate::state::*;
-use lasso::Spur;
+use itertools::Itertools;
+use lasso::{Rodeo, Spur};
 use rustyline::Editor;
 use std::collections::HashMap;
 
@@ -13,6 +14,18 @@ pub trait Runner {
 pub struct Repl<'e> {
     interesting_vars: HashMap<Spur, VarId>,
     rl: &'e mut rustyline::Editor<()>,
+}
+
+impl Repl<'_> {
+    pub fn dbg(&self, rodeo: &Rodeo) -> String {
+        format!(
+            "Top-level unification vars:\n   {}",
+            self.interesting_vars
+                .iter()
+                .map(|(n, v)| format!("{} = {}", rodeo.resolve(n), v))
+                .format("\n   ")
+        )
+    }
 }
 
 impl<'a> Runner for Repl<'a> {

@@ -131,7 +131,7 @@ impl<'a> VarTable<'a> {
 
     fn fmt_helper(&self, f: &mut impl Write, var: VarId, rodeo: &Rodeo, dbg: bool) {
         if dbg {
-            write!(f, "{:?}: ", var).unwrap();
+            write!(f, "{}", var).unwrap();
         }
         let item = self.map.lookup(&var).unwrap();
         match *item {

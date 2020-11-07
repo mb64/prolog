@@ -17,6 +17,7 @@ use state::{Command, VarTable};
 use unify::State;
 
 fn main() {
+    pretty_env_logger::init();
     let mut rl = Editor::<()>::new();
 
     let mut ctx = builtins::builtins(Rodeo::default());
@@ -36,6 +37,7 @@ fn main() {
                 let mut vars = VarTable::new(&base_map);
 
                 let (query, mut runner) = runner::from_question(&ast, &mut rl, &mut vars);
+                log::debug!("{}", runner.dbg(&ctx.rodeo));
 
                 let mut state = State {
                     ctx: &ctx,
