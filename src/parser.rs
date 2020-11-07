@@ -37,6 +37,8 @@ pub enum Tok<'a> {
     Period,
     #[token(",")]
     Comma,
+    #[token("?")]
+    Question,
 
     #[token(":-")]
     Turnstile,
@@ -79,6 +81,13 @@ pub enum Expr {
     Functor { name: Spur, args: Vec<Expr> },
 }
 
+/// An input from the REPL
+/// Unlike a typical Prolog REPL, more like Makam's
+pub enum ReplItem {
+    Clause(Clause),
+    Question(Expr),
+}
+
 impl Expr {
     /// The empty list
     pub fn nil(rodeo: &mut Rodeo) -> Self {
@@ -98,15 +107,27 @@ impl Expr {
 }
 
 pub fn parse(file_name: &str, input: &str, rodeo: &mut Rodeo) -> Option<Vec<Clause>> {
-    use ParseError::*;
     let lexer = Lexer {
         lexer: Tok::lexer(input),
     };
-    let err = match parser::ProgramParser::new().parse(input, rodeo, lexer) {
-        Ok(r) => return Some(r),
-        Err(e) => e,
+    parser::ProgramParser::new()
+        .parse(input, rodeo, lexer)
+        .map_err(|e| print_err(file_name, input, e))
+        .ok()
+}
+
+pub fn parse_repl(input: &str, rodeo: &mut Rodeo) -> Option<ReplItem> {
+    let lexer = Lexer {
+        lexer: Tok::lexer(input),
     };
-    // Print error
+    parser::ReplItemParser::new()
+        .parse(input, rodeo, lexer)
+        .map_err(|e| print_err("stdin", input, e))
+        .ok()
+}
+
+fn print_err(file_name: &str, input: &str, err: ParseError<usize, Tok, ()>) {
+    use ParseError::*;
     let (label, notes) = match err {
         InvalidToken { location } => (
             Label::primary((), location..location).with_message("Invalid Token"),
@@ -137,6 +158,4 @@ pub fn parse(file_name: &str, input: &str, rodeo: &mut Rodeo) -> Option<Vec<Clau
     let writer = StandardStream::stderr(ColorChoice::Always);
     let config = codespan_reporting::term::Config::default();
     codespan_reporting::term::emit(&mut writer.lock(), &config, &files, &diagnostic).unwrap();
-
-    None
 }

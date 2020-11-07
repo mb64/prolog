@@ -16,12 +16,16 @@ fn main() {
     let mut rodeo = Rodeo::default();
 
     for line in io::stdin().lock().lines() {
-        for ast in parser::parse("stdin", &line.unwrap(), &mut rodeo)
-            .into_iter()
-            .flatten()
-        {
-            let clause = state::Clause::from_ast(&ast, &mut rodeo);
-            println!("{:#?}", clause);
+        match parser::parse_repl(&line.unwrap(), &mut rodeo) {
+            Some(parser::ReplItem::Clause(ast)) => {
+                let clause = state::Clause::from_ast(&ast, &mut rodeo);
+                println!("{:#?}", clause);
+            }
+            Some(parser::ReplItem::Question(ast)) => {
+                println!("{:#?}", ast);
+                todo!()
+            }
+            None => (),
         }
     }
     // let base = ScopedMapBase::new();

@@ -1,4 +1,4 @@
-use crate::parser::{Tok, Expr, Clause};
+use crate::parser::{Tok, Expr, Clause, ReplItem};
 use lasso::{Rodeo, Spur};
 
 grammar<'input, 'rodeo>(input: &'input str, rodeo: &'rodeo mut Rodeo);
@@ -16,6 +16,7 @@ extern {
         "=" => Tok::Equals,
         "." => Tok::Period,
         "," => Tok::Comma,
+        "?" => Tok::Question,
         ":-" => Tok::Turnstile,
         "_" => Tok::Wildcard,
         functor => Tok::Functor(<&'input str>),
@@ -24,6 +25,12 @@ extern {
 }
 
 pub Program: Vec<Clause> = Clause*;
+pub ReplItem: ReplItem = {
+    <Clause> => ReplItem::Clause(<>),
+    <Question> => ReplItem::Question(<>),
+}
+
+Question: Expr = <Expr> "?";
 
 Clause: Clause = {
     <f:Functor> "." => {
