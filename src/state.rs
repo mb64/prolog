@@ -1,7 +1,7 @@
 //! The main datastructures
 
 use lasso::{Rodeo, Spur};
-use scoped_map::ScopedMap;
+use scoped_map::{ScopedMap, ScopedMapBase};
 use std::collections::{hash_map::Entry, HashMap};
 use std::fmt::{self, Write};
 
@@ -9,6 +9,7 @@ use crate::parser;
 use crate::runner::Runner;
 
 /// An unrecoverable error
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct SolveError(pub &'static str);
 
 pub type Result<T> = std::result::Result<T, SolveError>;
@@ -50,6 +51,13 @@ pub struct VarTable<'a> {
 }
 
 impl<'a> VarTable<'a> {
+    pub fn new(base: &'a ScopedMapBase<VarId, Item>) -> Self {
+        Self {
+            map: base.make_map(),
+            next_var: 0,
+        }
+    }
+
     pub fn new_var(&mut self) -> VarId {
         let new_id = VarId(self.next_var);
         self.next_var += 1;
@@ -164,7 +172,7 @@ impl Context {
                 cs.push(clause);
                 Ok(())
             }
-            Relation::Builtin(_) => Err("Cannot extend relation"),
+            Relation::Builtin(_) => Err("Cannot extend builtin relation"),
         }
     }
 

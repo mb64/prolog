@@ -32,6 +32,34 @@ fn print(
     runner.solution(ctx, vars)
 }
 
+/// `println` builtin -- prints its argument, followed by a newline
+fn println(
+    ctx: &Context,
+    vars: &mut VarTable<'_>,
+    args: Box<[VarId]>,
+    runner: &mut dyn Runner,
+) -> Result<Command> {
+    match *args {
+        [x] => println!("{}", vars.show(x, &ctx.rodeo)),
+        _ => panic!("Wrong number of arguments"),
+    }
+    runner.solution(ctx, vars)
+}
+
+/// `nl` builtin -- prints a newline
+fn nl(
+    ctx: &Context,
+    vars: &mut VarTable<'_>,
+    args: Box<[VarId]>,
+    runner: &mut dyn Runner,
+) -> Result<Command> {
+    match *args {
+        [] => println!(""),
+        _ => panic!("Wrong number of arguments"),
+    }
+    runner.solution(ctx, vars)
+}
+
 /// `=` builtin -- unifies its arguments
 fn unify(
     ctx: &Context,
@@ -48,9 +76,11 @@ fn unify(
 
 pub fn builtins(mut rodeo: Rodeo) -> Context {
     let rels = [
+        ("=", 2, unify as Builtin),
         ("fail", 0, fail as Builtin),
         ("print", 1, print as Builtin),
-        ("=", 2, unify as Builtin),
+        ("println", 1, println as Builtin),
+        ("nl", 0, nl as Builtin),
         // TODO more
     ]
     .iter()

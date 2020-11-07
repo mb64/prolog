@@ -32,16 +32,17 @@ impl ClauseItem {
 impl<'a, 'v> State<'a, 'v> {
     pub fn solve(&mut self, v: VarId) -> Result<Command> {
         match *self.vars.lookup(v) {
-            Item::Var(_) => Err(SolveError("can't solve metavariable")),
-            Item::Functor { name, ref args } => match self.ctx.rels[&RelId {
+            Item::Var(_) => Err(SolveError("can't solve ambiguous metavariable")),
+            Item::Functor { name, ref args } => match self.ctx.rels.get(&RelId {
                 name,
                 arity: args.len() as u32,
-            }] {
-                Relation::Builtin(func) => {
+            }) {
+                None => Err(SolveError("Unknown functor")), // TODO: better message
+                Some(&Relation::Builtin(func)) => {
                     let args = args.clone();
                     func(self.ctx, self.vars, args, self.runner)
                 }
-                Relation::User(ref clauses) => {
+                Some(Relation::User(clauses)) => {
                     let args = args.clone();
                     // FIXME: don't need the last clause to be backtrackable
                     // Really wish Rust had tail recursion
