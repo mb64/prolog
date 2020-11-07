@@ -4,9 +4,9 @@ use crate::runner::*;
 use crate::state::*;
 
 pub struct State<'a, 'v> {
-    rels: &'a Relations,
-    vars: &'a mut VarTable<'v>,
-    runner: &'a mut dyn Runner,
+    pub ctx: &'a Context,
+    pub vars: &'a mut VarTable<'v>,
+    pub runner: &'a mut dyn Runner,
 }
 
 impl ClauseItem {
@@ -33,13 +33,13 @@ impl<'a, 'v> State<'a, 'v> {
     pub fn solve(&mut self, v: VarId) -> Result<Command> {
         match *self.vars.lookup(v) {
             Item::Var(_) => Err(SolveError("can't solve metavariable")),
-            Item::Functor { name, ref args } => match self.rels.rels[&RelId {
+            Item::Functor { name, ref args } => match self.ctx.rels[&RelId {
                 name,
                 arity: args.len() as u32,
             }] {
                 Relation::Builtin(func) => {
                     let args = args.clone();
-                    func(self.rels, self.vars, args, self.runner)
+                    func(self.ctx, self.vars, args, self.runner)
                 }
                 Relation::User(ref clauses) => {
                     let args = args.clone();
@@ -49,7 +49,7 @@ impl<'a, 'v> State<'a, 'v> {
                         // Would be good not to clone
                         let args = args.clone();
                         let mut tmp_state = State {
-                            rels: self.rels,
+                            ctx: self.ctx,
                             vars: &mut self.vars.backtrackable(),
                             runner: self.runner,
                         };
@@ -75,12 +75,12 @@ struct All<'a> {
 }
 
 impl<'a> Runner for All<'a> {
-    fn solution(&mut self, rels: &Relations, vars: &mut VarTable<'_>) -> Result<Command> {
+    fn solution(&mut self, ctx: &Context, vars: &mut VarTable<'_>) -> Result<Command> {
         match *self.items {
-            [] => self.base.solution(rels, vars),
+            [] => self.base.solution(ctx, vars),
             [head] => {
                 let mut state = State {
-                    rels,
+                    ctx,
                     vars,
                     runner: self.base,
                 };
@@ -88,7 +88,7 @@ impl<'a> Runner for All<'a> {
             }
             [head, ref tail @ ..] => {
                 let mut state = State {
-                    rels,
+                    ctx,
                     vars,
                     runner: &mut All {
                         items: tail,
@@ -116,7 +116,7 @@ impl<'a, 'v> State<'a, 'v> {
                 self.solve(first)
             } else {
                 let mut state = State {
-                    rels: self.rels,
+                    ctx: self.ctx,
                     vars: self.vars,
                     runner: &mut All {
                         items: &rest[..],
@@ -127,7 +127,7 @@ impl<'a, 'v> State<'a, 'v> {
             }
         } else {
             drop(locals);
-            self.runner.solution(self.rels, self.vars)
+            self.runner.solution(self.ctx, self.vars)
         }
     }
 }
@@ -142,17 +142,17 @@ struct UnifyAll<'a> {
 }
 
 impl<'a> Runner for UnifyAll<'a> {
-    fn solution(&mut self, rels: &Relations, vars: &mut VarTable) -> Result<Command> {
+    fn solution(&mut self, ctx: &Context, vars: &mut VarTable) -> Result<Command> {
         match (self.lhs, self.rhs) {
-            ([], []) => self.base.solution(rels, vars),
+            ([], []) => self.base.solution(ctx, vars),
             (&[x], &[y]) => State {
-                rels,
+                ctx,
                 vars,
                 runner: self.base,
             }
             .unify(x, y),
             (&[x, ref xs @ ..], &[y, ref ys @ ..]) => State {
-                rels,
+                ctx,
                 vars,
                 runner: &mut UnifyAll {
                     lhs: xs,
@@ -174,12 +174,12 @@ impl<'a, 'v> State<'a, 'v> {
         match *self.vars.lookup_imm(a) {
             Item::Var(v) => {
                 self.vars.update(v, Item::Var(b));
-                self.runner.solution(self.rels, self.vars)
+                self.runner.solution(self.ctx, self.vars)
             }
             Item::Functor { name, ref args } => match *self.vars.lookup_imm(b) {
                 Item::Var(v) => {
                     self.vars.update(v, Item::Var(a));
-                    self.runner.solution(self.rels, self.vars)
+                    self.runner.solution(self.ctx, self.vars)
                 }
                 Item::Functor {
                     name: name_b,
@@ -189,7 +189,7 @@ impl<'a, 'v> State<'a, 'v> {
                     if args.len() == 0 {
                         // Nothing left to unify!
                         // Solved.
-                        self.runner.solution(self.rels, self.vars)
+                        self.runner.solution(self.ctx, self.vars)
                     } else if args.len() == 1 {
                         self.unify(args[0], args_b[0])
                     } else {
@@ -198,7 +198,7 @@ impl<'a, 'v> State<'a, 'v> {
                         let lhs = args[1..].to_owned();
                         let rhs = args_b[1..].to_owned();
                         State {
-                            rels: self.rels,
+                            ctx: self.ctx,
                             vars: self.vars,
                             runner: &mut UnifyAll {
                                 lhs: &lhs,

@@ -6,6 +6,7 @@ use lasso::Rodeo;
 use scoped_map::ScopedMapBase;
 use std::io::{self, prelude::*};
 
+pub mod builtins;
 pub mod parser;
 pub mod runner;
 pub mod state;
@@ -15,7 +16,13 @@ fn main() {
     let mut rodeo = Rodeo::default();
 
     for line in io::stdin().lock().lines() {
-        println!("{:#?}", parser::parse("stdin", &line.unwrap(), &mut rodeo));
+        for ast in parser::parse("stdin", &line.unwrap(), &mut rodeo)
+            .into_iter()
+            .flatten()
+        {
+            let clause = state::Clause::from_ast(&ast, &mut rodeo);
+            println!("{:#?}", clause);
+        }
     }
     // let base = ScopedMapBase::new();
 

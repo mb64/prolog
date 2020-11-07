@@ -2,9 +2,10 @@
 
 use lasso::{Rodeo, Spur};
 use scoped_map::ScopedMap;
-use std::collections::HashMap;
+use std::collections::{hash_map::Entry, HashMap};
 use std::fmt::{self, Write};
 
+use crate::parser;
 use crate::runner::Runner;
 
 /// An unrecoverable error
@@ -142,12 +143,47 @@ impl<'a> VarTable<'a> {
     }
 }
 
-pub struct Relations {
+pub struct Context {
     pub rels: HashMap<RelId, Relation>,
+    pub rodeo: Rodeo,
 }
 
+impl Context {
+    pub fn add_clause(
+        &mut self,
+        rel_id: RelId,
+        clause: Clause,
+    ) -> std::result::Result<(), &'static str> {
+        let entry = self
+            .rels
+            .entry(rel_id)
+            .or_insert(Relation::User(Vec::new()));
+
+        match *entry {
+            Relation::User(ref mut cs) => {
+                cs.push(clause);
+                Ok(())
+            }
+            Relation::Builtin(_) => Err("Cannot extend relation"),
+        }
+    }
+
+    pub fn add_ast_clause(
+        &mut self,
+        ast_clause: parser::Clause,
+    ) -> std::result::Result<(), &'static str> {
+        let rel_id = RelId {
+            name: ast_clause.functor,
+            arity: ast_clause.args.len() as u32,
+        };
+        let clause = Clause::from_ast(&ast_clause, &mut self.rodeo);
+        self.add_clause(rel_id, clause)
+    }
+}
+
+#[derive(Clone)]
 pub enum Relation {
-    Builtin(fn(&Relations, &mut VarTable<'_>, Box<[VarId]>, &mut dyn Runner) -> Result<Command>),
+    Builtin(fn(&Context, &mut VarTable<'_>, Box<[VarId]>, &mut dyn Runner) -> Result<Command>),
     User(Vec<Clause>),
 }
 
@@ -155,6 +191,96 @@ pub enum Relation {
 // Negative number is arguments, positive number is local var
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Local(i32);
+
+impl Local {
+    fn arg(n: i32) -> Self {
+        assert!(n >= 0);
+        Self(-n - 1)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ClauseItem {
+    Var(Local),
+    Functor { name: Spur, args: Box<[ClauseItem]> },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Clause {
+    /// The number of local variables used in the clause.
+    /// The first `n` locals are the parameters.
+    locals: u32,
+    /// The requirements
+    pub reqs: Vec<ClauseItem>,
+}
+
+impl Clause {
+    pub fn from_ast(ast: &parser::Clause, rodeo: &mut Rodeo) -> Clause {
+        use parser::Expr;
+
+        let mut next_local = 0;
+        let mut locals = HashMap::<Spur, Local>::new();
+        let mut reqs = vec![];
+
+        fn translate_expr(
+            ast: &Expr,
+            next_local: &mut i32,
+            locals: &mut HashMap<Spur, Local>,
+        ) -> ClauseItem {
+            match *ast {
+                Expr::Var(n) => {
+                    let v = locals.entry(n).or_insert_with(|| {
+                        *next_local += 1;
+                        Local(*next_local - 1)
+                    });
+                    ClauseItem::Var(*v)
+                }
+                Expr::Functor { name, ref args } => ClauseItem::Functor {
+                    name,
+                    args: args
+                        .iter()
+                        .map(|arg| translate_expr(arg, next_local, locals))
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
+                },
+            }
+        }
+
+        let mut unify_arg = move |arg: usize, item: ClauseItem| -> ClauseItem {
+            ClauseItem::Functor {
+                name: rodeo.get_or_intern("="),
+                args: Box::new([ClauseItem::Var(Local::arg(arg as i32)), item]),
+            }
+        };
+
+        for (i, arg) in ast.args.iter().enumerate() {
+            match *arg {
+                Expr::Var(n) => match locals.entry(n) {
+                    Entry::Occupied(entry) => {
+                        let l = *entry.get();
+                        reqs.push(unify_arg(i, ClauseItem::Var(l)));
+                    }
+                    Entry::Vacant(entry) => {
+                        entry.insert(Local::arg(i as i32));
+                    }
+                },
+                Expr::Functor { .. } => {
+                    let e = translate_expr(arg, &mut next_local, &mut locals);
+                    reqs.push(unify_arg(i, e));
+                }
+            }
+        }
+
+        for cond in &ast.conditions {
+            reqs.push(translate_expr(cond, &mut next_local, &mut locals));
+        }
+
+        Clause {
+            locals: next_local as u32,
+            reqs,
+        }
+    }
+}
 
 /// A collection holding the local variables and parameters
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -189,19 +315,4 @@ impl LocalVars {
             VarId(self.start + local.0 as u64)
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ClauseItem {
-    Var(Local),
-    Functor { name: Spur, args: Box<[ClauseItem]> },
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Clause {
-    /// The number of local variables used in the clause.
-    /// The first `n` locals are the parameters.
-    locals: u32,
-    /// The requirements
-    pub reqs: Vec<ClauseItem>,
 }

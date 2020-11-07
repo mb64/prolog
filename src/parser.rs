@@ -1,6 +1,6 @@
 //! Lexer and parser
 
-// TODO: convert AST to Relations, parse queries, wildcards, better error handling
+// TODO: convert AST to Context, parse queries, wildcards, better error handling
 
 use codespan_reporting::diagnostic::{Diagnostic, Label};
 use codespan_reporting::files::SimpleFile;
@@ -67,9 +67,9 @@ impl<'input> Iterator for Lexer<'input> {
 /// A single clause for some functor.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Clause {
-    functor: Spur,
-    args: Vec<Expr>,
-    conditions: Vec<Expr>,
+    pub functor: Spur,
+    pub args: Vec<Expr>,
+    pub conditions: Vec<Expr>,
 }
 
 /// Either a functor or a variable
