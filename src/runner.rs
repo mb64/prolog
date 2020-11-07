@@ -3,17 +3,19 @@
 use crate::parser::Expr;
 use crate::state::*;
 use lasso::Spur;
+use rustyline::Editor;
 use std::collections::HashMap;
 
 pub trait Runner {
     fn solution(&mut self, ctx: &Context, vars: &mut VarTable<'_>) -> Result<Command>;
 }
 
-pub struct Repl {
+pub struct Repl<'e> {
     interesting_vars: HashMap<Spur, VarId>,
+    rl: &'e mut rustyline::Editor<()>,
 }
 
-impl Runner for Repl {
+impl<'a> Runner for Repl<'a> {
     fn solution(&mut self, ctx: &Context, vars: &mut VarTable<'_>) -> Result<Command> {
         println!("\nSolution:");
         for (&name, &var) in &self.interesting_vars {
@@ -23,8 +25,16 @@ impl Runner for Repl {
                 vars.show(var, &ctx.rodeo)
             );
         }
-        // TODO: prompt user
-        Ok(Command::Stop)
+        // TODO: prompt user in a better way
+        let response = match self.rl.readline("? ") {
+            Ok(r) => r,
+            Err(_) => return Ok(Command::Stop),
+        };
+        if response.trim() == ";" {
+            Ok(Command::KeepGoing)
+        } else {
+            Ok(Command::Stop)
+        }
     }
 }
 
@@ -45,13 +55,18 @@ fn reify_ast<'a>(ast: &Expr, vars: &mut VarTable<'a>, my_vars: &mut HashMap<Spur
 /// Returns `(var, runner)`.
 ///
 /// Next, run `unify::State {..}.solve(var)`
-pub fn from_question<'a>(q: &Expr, vars: &mut VarTable<'a>) -> (VarId, Repl) {
+pub fn from_question<'e, 'v>(
+    q: &Expr,
+    rl: &'e mut Editor<()>,
+    vars: &mut VarTable<'v>,
+) -> (VarId, Repl<'e>) {
     let mut interesting = HashMap::new();
     let res = reify_ast(q, vars, &mut interesting);
     (
         res,
         Repl {
             interesting_vars: interesting,
+            rl,
         },
     )
 }

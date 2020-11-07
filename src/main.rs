@@ -35,7 +35,7 @@ fn main() {
             Some(ReplItem::Question(ast)) => {
                 let mut vars = VarTable::new(&base_map);
 
-                let (query, mut runner) = runner::from_question(&ast, &mut vars);
+                let (query, mut runner) = runner::from_question(&ast, &mut rl, &mut vars);
 
                 let mut state = State {
                     ctx: &ctx,
