@@ -75,11 +75,46 @@ fn unify(
     State { ctx, vars, runner }.unify(a, b)
 }
 
+/// `not`/1 builtin, aka `\+` -- fails if its goal can be met
+fn not(
+    ctx: &Context,
+    vars: &mut VarTable<'_>,
+    args: Box<[VarId]>,
+    runner: &mut dyn Runner,
+) -> SolverResult {
+    match *args {
+        [arg] => {
+            log::trace!("trying goal {}", vars.dbg(arg, &ctx.rodeo));
+            let mut new_vars = vars.backtrackable();
+            let mut state = State {
+                ctx,
+                vars: &mut new_vars,
+                runner: &mut OneSoln,
+            };
+            match state.solve(arg)? {
+                // Stop requested, it must have reached a solution
+                // Fail
+                Command::Stop => {
+                    log::trace!("subgoal succeeded, so not(subgoal) fails");
+                    Ok(Command::KeepGoing)
+                }
+                // Did not reach a solution -- successfully unsolvable
+                Command::KeepGoing => {
+                    drop(new_vars);
+                    log::trace!("subgoal failed, so not(subgoal) succeeds");
+                    runner.solution(ctx, vars)
+                }
+            }
+        }
+        _ => panic!("Wrong number of arguments"),
+    }
+}
+
 pub fn builtins(rodeo: &mut Rodeo) -> HashMap<RelId, Relation> {
     [
         ("=", 2, unify as Builtin),
         ("fail", 0, fail as Builtin),
-        // print and write typically have different behavior, but this is non-standard anyways
+        ("not", 1, not as Builtin),
         ("print", 1, print as Builtin),
         ("write", 1, print as Builtin),
         ("println", 1, println as Builtin),

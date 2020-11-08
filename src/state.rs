@@ -69,7 +69,6 @@ pub enum Command {
     KeepGoing,
     Stop,
 }
-pub use Command::*;
 
 /// `SolverResult` is returned by basically every function
 pub type SolverResult = Result<Command, Box<SolveError>>;

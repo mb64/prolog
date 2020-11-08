@@ -51,7 +51,7 @@ More datatypes:
 More builtins:
  - Arithmetic
  - `is`
- - Negation: `not`
+ - Negation: ~~`not`~~ done, `\=`, `\+`
  - `cpu_time`, to run benchmarks
  - load clauses from file
  - Cuts: `!` (will probably require some restructuring)

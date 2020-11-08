@@ -65,11 +65,11 @@ impl<'a, 'v> State<'a, 'v> {
                             runner: self.runner,
                         };
                         match tmp_state.solve_clause(clause, args)? {
-                            Stop => return Ok(Stop),
-                            KeepGoing => continue,
+                            Command::Stop => return Ok(Command::Stop),
+                            Command::KeepGoing => continue,
                         }
                     }
-                    Ok(KeepGoing)
+                    Ok(Command::KeepGoing)
                 }
             },
         }
@@ -233,7 +233,7 @@ impl<'a, 'v> State<'a, 'v> {
                 }
                 Item::Functor { .. } => {
                     log::trace!("Could not unify -- backtrack");
-                    Ok(KeepGoing)
+                    Ok(Command::KeepGoing)
                 }
             },
         }
