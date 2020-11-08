@@ -58,6 +58,7 @@ Expr: Expr = {
 }
 
 Term: Expr = {
+    "_" => Expr::Wildcard,
     Variable => Expr::Var(rodeo.get_or_intern(<>)),
     Functor => {
         let (name, args) = <>;
@@ -82,4 +83,3 @@ Functor: (Spur, Vec<Expr>) = {
     <f:functor> "(" <args:Exprs> ")" => (rodeo.get_or_intern(f), args),
     <f:functor> => (rodeo.get_or_intern(f), vec![]),
 }
-

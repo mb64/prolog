@@ -238,12 +238,17 @@ impl Clause {
             locals: &mut HashMap<Spur, Local>,
         ) -> ClauseItem {
             match *ast {
+                Expr::Wildcard => {
+                    let l = Local(*next_local);
+                    *next_local += 1;
+                    ClauseItem::Var(l)
+                }
                 Expr::Var(n) => {
-                    let v = locals.entry(n).or_insert_with(|| {
+                    let l = locals.entry(n).or_insert_with(|| {
                         *next_local += 1;
                         Local(*next_local - 1)
                     });
-                    ClauseItem::Var(*v)
+                    ClauseItem::Var(*l)
                 }
                 Expr::Functor { name, ref args } => ClauseItem::Functor {
                     name,
@@ -265,6 +270,7 @@ impl Clause {
 
         for (i, arg) in ast.args.iter().enumerate() {
             match *arg {
+                Expr::Wildcard => (),
                 Expr::Var(n) => match locals.entry(n) {
                     Entry::Occupied(entry) => {
                         let l = *entry.get();

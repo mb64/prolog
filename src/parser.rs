@@ -46,9 +46,9 @@ pub enum Tok<'a> {
     #[token("_")]
     Wildcard,
 
-    #[regex(r"[a-z][a-zA-Z_]*")]
+    #[regex(r"[a-z][a-zA-Z0-9_]*")]
     Functor(&'a str),
-    #[regex(r"[A-Z][a-zA-Z_]*")]
+    #[regex(r"[A-Z_][a-zA-Z0-9_]*")]
     Variable(&'a str),
 }
 
@@ -77,7 +77,11 @@ pub struct Clause {
 /// Either a functor or a variable
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expr {
+    /// Wildcard variable: `_`
+    Wildcard,
+    /// Actual variable: `A`
     Var(Spur),
+    /// Functor: `f(x, A)`
     Functor { name: Spur, args: Vec<Expr> },
 }
 
