@@ -11,12 +11,12 @@ pub trait Runner {
     fn solution(&mut self, ctx: &Context, vars: &mut VarTable<'_>) -> Result<Command>;
 }
 
-pub struct Repl<'e> {
+pub struct Printing<'r, R> {
     interesting_vars: HashMap<Spur, VarId>,
-    rl: &'e mut rustyline::Editor<()>,
+    base: &'r mut R,
 }
 
-impl Repl<'_> {
+impl<R> Printing<'_, R> {
     pub fn dbg(&self, rodeo: &Rodeo) -> String {
         format!(
             "Top-level unification vars:\n   {}",
@@ -28,7 +28,7 @@ impl Repl<'_> {
     }
 }
 
-impl<'a> Runner for Repl<'a> {
+impl<R: Runner> Runner for Printing<'_, R> {
     fn solution(&mut self, ctx: &Context, vars: &mut VarTable<'_>) -> Result<Command> {
         println!("\nSolution:");
         for (&name, &var) in &self.interesting_vars {
@@ -38,8 +38,14 @@ impl<'a> Runner for Repl<'a> {
                 vars.show(var, &ctx.rodeo)
             );
         }
+        self.base.solution(ctx, vars)
+    }
+}
+
+impl Runner for Editor<()> {
+    fn solution(&mut self, _ctx: &Context, _vars: &mut VarTable<'_>) -> Result<Command> {
         // TODO: prompt user in a better way
-        let response = match self.rl.readline("? ") {
+        let response = match self.readline("? ") {
             Ok(r) => r,
             Err(_) => return Ok(Command::Stop),
         };
@@ -48,6 +54,22 @@ impl<'a> Runner for Repl<'a> {
         } else {
             Ok(Command::Stop)
         }
+    }
+}
+
+/// A Runner which goes through all solutions.
+pub struct OneSoln;
+/// A Runner which only asks for the first solution.
+pub struct AllSolns;
+
+impl Runner for AllSolns {
+    fn solution(&mut self, _ctx: &Context, _vars: &mut VarTable<'_>) -> Result<Command> {
+        Ok(Command::KeepGoing)
+    }
+}
+impl Runner for OneSoln {
+    fn solution(&mut self, _ctx: &Context, _vars: &mut VarTable<'_>) -> Result<Command> {
+        Ok(Command::Stop)
     }
 }
 
@@ -68,18 +90,18 @@ fn reify_ast<'a>(ast: &Expr, vars: &mut VarTable<'a>, my_vars: &mut HashMap<Spur
 /// Returns `(var, runner)`.
 ///
 /// Next, run `unify::State {..}.solve(var)`
-pub fn from_question<'e, 'v>(
+pub fn from_question<'e, 'v, R>(
     q: &Expr,
-    rl: &'e mut Editor<()>,
+    r: &'e mut R,
     vars: &mut VarTable<'v>,
-) -> (VarId, Repl<'e>) {
+) -> (VarId, Printing<'e, R>) {
     let mut interesting = HashMap::new();
     let res = reify_ast(q, vars, &mut interesting);
     (
         res,
-        Repl {
+        Printing {
             interesting_vars: interesting,
-            rl,
+            base: r,
         },
     )
 }

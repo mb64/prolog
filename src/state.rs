@@ -45,13 +45,15 @@ pub enum Item {
     Functor { name: Spur, args: Box<[VarId]> },
 }
 
+pub type VarTableBase = ScopedMapBase<VarId, Item>;
+
 pub struct VarTable<'a> {
     map: ScopedMap<'a, VarId, Item>,
     next_var: u64,
 }
 
 impl<'a> VarTable<'a> {
-    pub fn new(base: &'a ScopedMapBase<VarId, Item>) -> Self {
+    pub fn new(base: &'a VarTableBase) -> Self {
         Self {
             map: base.make_map(),
             next_var: 0,

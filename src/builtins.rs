@@ -78,7 +78,9 @@ pub fn builtins(mut rodeo: Rodeo) -> Context {
     let rels = [
         ("=", 2, unify as Builtin),
         ("fail", 0, fail as Builtin),
+        // print and write typically have different behavior, but this is non-standard anyways
         ("print", 1, print as Builtin),
+        ("write", 1, print as Builtin),
         ("println", 1, println as Builtin),
         ("nl", 0, nl as Builtin),
         // TODO more
