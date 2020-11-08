@@ -1,5 +1,6 @@
 //! Unification
 
+use crate::parser::Span;
 use crate::runner::*;
 use crate::state::*;
 
@@ -30,22 +31,22 @@ impl ClauseItem {
 }
 
 impl<'a, 'v> State<'a, 'v> {
-    pub fn solve(&mut self, v: VarId) -> Result<Command> {
+    pub fn solve(&mut self, v: VarId) -> SolverResult {
         log::debug!("Solving {}", self.vars.dbg(v, &self.ctx.rodeo));
         match *self.vars.lookup(v) {
-            Item::Var(_) => Err(SolveError("can't solve ambiguous metavariable")),
+            Item::Var(_) => Err("can't solve ambiguous metavariable".into()),
             Item::Functor { name, ref args } => match self.ctx.rels.get(&RelId {
                 name,
                 arity: args.len() as u32,
             }) {
                 None => {
-                    log::debug!(
+                    let message = format!(
                         "Unknown functor {}/{}",
                         self.ctx.rodeo.resolve(&name),
                         args.len()
                     );
-                    // TODO: better message
-                    Err(SolveError("Unknown functor"))
+                    log::debug!("{}", message);
+                    Err(message.into())
                 }
                 Some(&Relation::Builtin(func)) => {
                     let args = args.clone();
@@ -80,23 +81,23 @@ impl<'a, 'v> State<'a, 'v> {
 // whatever, it's doesn't need to be fancy
 
 struct All<'a> {
-    items: &'a [VarId],
+    items: &'a [(Span, VarId)],
     base: &'a mut dyn Runner,
 }
 
 impl<'a> Runner for All<'a> {
-    fn solution(&mut self, ctx: &Context, vars: &mut VarTable<'_>) -> Result<Command> {
+    fn solution(&mut self, ctx: &Context, vars: &mut VarTable<'_>) -> SolverResult {
         match *self.items {
             [] => self.base.solution(ctx, vars),
-            [head] => {
+            [(span, head)] => {
                 let mut state = State {
                     ctx,
                     vars,
                     runner: self.base,
                 };
-                state.solve(head)
+                state.solve(head).map_err(|e| e.add_trace(span))
             }
-            [head, ref tail @ ..] => {
+            [(span, head), ref tail @ ..] => {
                 let mut state = State {
                     ctx,
                     vars,
@@ -105,25 +106,26 @@ impl<'a> Runner for All<'a> {
                         base: self.base,
                     },
                 };
-                state.solve(head)
+                state.solve(head).map_err(|e| e.add_trace(span))
             }
         }
     }
 }
 
 impl<'a, 'v> State<'a, 'v> {
-    fn solve_clause(&mut self, clause: &Clause, args: Box<[VarId]>) -> Result<Command> {
+    fn solve_clause(&mut self, clause: &Clause, args: Box<[VarId]>) -> SolverResult {
         let locals = self.vars.allocate_locals(clause, args);
         // loop thru and solve each clause item
         // (in an ultra-cursed CPS no tail calls way)
-        let mut items = clause.reqs.iter().map(|req| req.reify(self.vars, &locals));
-        if let Some(first) = items.next() {
-            let rest = items.collect::<Vec<VarId>>();
+        let mut items = clause
+            .reqs
+            .iter()
+            .map(|(span, req)| (*span, req.reify(self.vars, &locals)));
+        if let Some((span, first)) = items.next() {
+            let rest = items.collect::<Vec<_>>();
             if rest.len() == 0 {
-                // Hope for a tail call :'(
-                drop(locals);
-                drop(rest);
-                self.solve(first)
+                // Oh well, no tail call :'(
+                self.solve(first).map_err(|e| e.add_trace(span))
             } else {
                 let mut state = State {
                     ctx: self.ctx,
@@ -133,7 +135,7 @@ impl<'a, 'v> State<'a, 'v> {
                         base: self.runner,
                     },
                 };
-                state.solve(first)
+                state.solve(first).map_err(|e| e.add_trace(span))
             }
         } else {
             drop(locals);
@@ -152,7 +154,7 @@ struct UnifyAll<'a> {
 }
 
 impl<'a> Runner for UnifyAll<'a> {
-    fn solution(&mut self, ctx: &Context, vars: &mut VarTable) -> Result<Command> {
+    fn solution(&mut self, ctx: &Context, vars: &mut VarTable) -> SolverResult {
         match (self.lhs, self.rhs) {
             ([], []) => self.base.solution(ctx, vars),
             (&[x], &[y]) => State {
@@ -178,7 +180,7 @@ impl<'a> Runner for UnifyAll<'a> {
 
 // Finally
 impl<'a, 'v> State<'a, 'v> {
-    pub fn unify(&mut self, a: VarId, b: VarId) -> Result<Command> {
+    pub fn unify(&mut self, a: VarId, b: VarId) -> SolverResult {
         log::debug!(
             "Unifying {} and {}",
             self.vars.dbg(a, &self.ctx.rodeo),

@@ -1,12 +1,13 @@
 //! Built-in Prolog operations
 
 use lasso::Rodeo;
+use std::collections::HashMap;
 
 use crate::runner::*;
 use crate::state::*;
 use crate::unify::State;
 
-type Builtin = fn(&Context, &mut VarTable<'_>, Box<[VarId]>, &mut dyn Runner) -> Result<Command>;
+type Builtin = fn(&Context, &mut VarTable<'_>, Box<[VarId]>, &mut dyn Runner) -> SolverResult;
 
 /// `fail` builtin -- immediately backtracks
 fn fail(
@@ -14,7 +15,7 @@ fn fail(
     _vars: &mut VarTable<'_>,
     _args: Box<[VarId]>,
     _runner: &mut dyn Runner,
-) -> Result<Command> {
+) -> SolverResult {
     Ok(Command::KeepGoing)
 }
 
@@ -24,7 +25,7 @@ fn print(
     vars: &mut VarTable<'_>,
     args: Box<[VarId]>,
     runner: &mut dyn Runner,
-) -> Result<Command> {
+) -> SolverResult {
     match *args {
         [x] => print!("{}", vars.show(x, &ctx.rodeo)),
         _ => panic!("Wrong number of arguments"),
@@ -38,7 +39,7 @@ fn println(
     vars: &mut VarTable<'_>,
     args: Box<[VarId]>,
     runner: &mut dyn Runner,
-) -> Result<Command> {
+) -> SolverResult {
     match *args {
         [x] => println!("{}", vars.show(x, &ctx.rodeo)),
         _ => panic!("Wrong number of arguments"),
@@ -52,7 +53,7 @@ fn nl(
     vars: &mut VarTable<'_>,
     args: Box<[VarId]>,
     runner: &mut dyn Runner,
-) -> Result<Command> {
+) -> SolverResult {
     match *args {
         [] => println!(""),
         _ => panic!("Wrong number of arguments"),
@@ -66,7 +67,7 @@ fn unify(
     vars: &mut VarTable<'_>,
     args: Box<[VarId]>,
     runner: &mut dyn Runner,
-) -> Result<Command> {
+) -> SolverResult {
     let (a, b) = match *args {
         [a, b] => (a, b),
         _ => panic!("Wrong number of arguments"),
@@ -74,8 +75,8 @@ fn unify(
     State { ctx, vars, runner }.unify(a, b)
 }
 
-pub fn builtins(mut rodeo: Rodeo) -> Context {
-    let rels = [
+pub fn builtins(rodeo: &mut Rodeo) -> HashMap<RelId, Relation> {
+    [
         ("=", 2, unify as Builtin),
         ("fail", 0, fail as Builtin),
         // print and write typically have different behavior, but this is non-standard anyways
@@ -95,6 +96,5 @@ pub fn builtins(mut rodeo: Rodeo) -> Context {
             Relation::Builtin(action),
         )
     })
-    .collect();
-    Context { rels, rodeo }
+    .collect()
 }

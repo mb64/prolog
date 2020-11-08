@@ -36,7 +36,8 @@ fn process_query<R: Runner>(
     match state.solve(query) {
         Ok(Command::KeepGoing) => println!("\nNo."),
         Ok(Command::Stop) => println!("\nYes."),
-        Err(e) => println!("Error: {:?}", e),
+        // TODO: configurable error display style
+        Err(e) => e.report(ctx, codespan_reporting::term::DisplayStyle::Short),
     }
 }
 
@@ -47,7 +48,7 @@ fn repl(ctx: &mut Context) {
 
     while let Ok(line) = rl.readline("> ") {
         rl.add_history_entry(&line);
-        match parser::parse_repl(&line, &mut ctx.rodeo) {
+        match parser::parse_repl(ctx, line) {
             Some(ReplItem::Clauses(asts)) => {
                 for ast in asts {
                     if let Err(e) = ctx.add_ast_clause(ast) {
@@ -65,9 +66,9 @@ fn repl(ctx: &mut Context) {
     println!("\nBye!");
 }
 
-fn load_file(filename: &str, ctx: &mut Context) {
-    let contents = std::fs::read_to_string(filename).unwrap();
-    if let Some(ast) = parser::parse(filename, &contents, &mut ctx.rodeo) {
+fn load_file(filename: String, ctx: &mut Context) {
+    let contents = std::fs::read_to_string(&filename).unwrap();
+    if let Some(ast) = parser::parse(ctx, filename, contents) {
         for ast_clause in ast {
             if let Err(e) = ctx.add_ast_clause(ast_clause) {
                 println!("Error: {}", e);
@@ -79,7 +80,13 @@ fn load_file(filename: &str, ctx: &mut Context) {
 fn main() {
     pretty_env_logger::init();
 
-    let mut ctx = builtins::builtins(Rodeo::default());
+    let mut rodeo = Rodeo::default();
+    let rels = builtins::builtins(&mut rodeo);
+    let files = codespan_reporting::files::SimpleFiles::new();
+
+    let mut ctx = Context { rodeo, rels, files };
+
+    // load_file("test.pl".to_string(), &mut ctx);
 
     repl(&mut ctx);
 }

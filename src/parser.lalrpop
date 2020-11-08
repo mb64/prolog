@@ -1,7 +1,7 @@
-use crate::parser::{Tok, Expr, Clause, ReplItem};
+use crate::parser::{Tok, Expr, Clause, ReplItem, Span};
 use lasso::{Rodeo, Spur};
 
-grammar<'input, 'rodeo>(input: &'input str, rodeo: &'rodeo mut Rodeo);
+grammar<'input, 'rodeo>(input: &'input str, rodeo: &'rodeo mut Rodeo, file_id: u32);
 
 extern {
     type Location = usize;
@@ -33,13 +33,15 @@ pub ReplItem: ReplItem = {
 Question: Expr = <Expr> "?";
 
 Clause: Clause = {
-    <f:Functor> "." => {
-        let (functor, args) = f;
-        Clause { functor, args, conditions: vec![] }
+    <l:@L> <f:Functor> "." <r:@R> => {
+        let span = Span::new(file_id, l, r);
+        let (_, functor, args) = f;
+        Clause { span, functor, args, conditions: vec![] }
     },
-    <f:Functor> ":-" <conditions:Exprs> "." => {
-        let (functor, args) = f;
-        Clause { functor, args, conditions }
+    <l:@L> <f:Functor> ":-" <conditions:Exprs> "." <r:@R> => {
+        let span = Span::new(file_id, l, r);
+        let (_, functor, args) = f;
+        Clause { span, functor, args, conditions }
     },
 }
 
@@ -51,35 +53,54 @@ Exprs: Vec<Expr> = {
 
 Expr: Expr = {
     Term,
-    <l:Term> "=" <r:Term> => Expr::Functor {
+    <l:@L> <lhs:Term> "=" <rhs:Term> <r:@R> => Expr::Functor {
+        span: Span::new(file_id, l, r),
         name: rodeo.get_or_intern("="),
-        args: vec![l, r],
+        args: vec![lhs, rhs],
     },
 }
 
 Term: Expr = {
-    "_" => Expr::Wildcard,
-    Variable => Expr::Var(rodeo.get_or_intern(<>)),
+    <l:@L> "_" <r:@R> => {
+        let span = Span::new(file_id, l, r);
+        Expr::Wildcard { span }
+    },
+    <l:@L> <v:Variable> <r:@R> => {
+        let span = Span::new(file_id, l, r);
+        Expr::Var { span, name: rodeo.get_or_intern(v) }
+    },
     Functor => {
-        let (name, args) = <>;
-        Expr::Functor { name, args }
+        let (span, name, args) = <>;
+        Expr::Functor { span, name, args }
     },
     List,
 }
 
 List: Expr = {
-    "[" <es:Exprs> "]" => es.into_iter().rev().fold(
-        Expr::nil(rodeo),
-        |tail, head| Expr::cons(head, tail, rodeo),
-    ),
+    <l:@L> "[" <es:Exprs> "]" <r:@R> => {
+        let span = Span::new(file_id, l, r);
+        es.into_iter().rev().fold(
+            Expr::nil(span, rodeo),
+            |tail, head| Expr::cons(head, tail, span, rodeo),
+        )
+    },
 
-    "[" <es:Exprs> "|" <t:Expr> "]" => es.into_iter().rev().fold(
-        t,
-        |tail, head| Expr::cons(head, tail, rodeo),
-    ),
+    <l:@L> "[" <es:Exprs> "|" <t:Expr> "]" <r:@R> => {
+        let span = Span::new(file_id, l, r);
+        es.into_iter().rev().fold(
+            t,
+            |tail, head| Expr::cons(head, tail, span, rodeo),
+        )
+    },
 }
 
-Functor: (Spur, Vec<Expr>) = {
-    <f:functor> "(" <args:Exprs> ")" => (rodeo.get_or_intern(f), args),
-    <f:functor> => (rodeo.get_or_intern(f), vec![]),
+Functor: (Span, Spur, Vec<Expr>) = {
+    <l:@L> <f:functor> "(" <args:Exprs> ")" <r:@R> => {
+        let span = Span::new(file_id, l, r);
+        (span, rodeo.get_or_intern(f), args)
+    },
+    <l:@L> <f:functor> <r:@R> => {
+        let span = Span::new(file_id, l, r);
+        (span, rodeo.get_or_intern(f), vec![])
+    },
 }

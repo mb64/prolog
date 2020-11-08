@@ -55,6 +55,7 @@ More builtins:
  - `cpu_time`, to run benchmarks
  - load clauses from file
  - Cuts: `!` (will probably require some restructuring)
+ - `->` and `*->` (soft cut)
  - standard library
  - IO
 
@@ -64,8 +65,10 @@ More usability:
  - Reset REPL
  - Command-line args to load files, run queries, optional REPL
  - Nicer lexer: allow for unicode, base-n literals, etc
- - Errors? Would be nice to have debug info on each clause, and be able to give
-   pretty stacktraces on fatal errors
+ - Allow `_Variables`, and generate warnings for singleton variables
+ - ~~Errors? Would be nice to have debug info on each clause, and be able to give
+   pretty stacktraces on fatal errors~~ Done!
+ - Maybe don't abuse `codespan_reporting` for stack traces
  - Debugging facilities?
  - Investigate alternatives to rustyline
 

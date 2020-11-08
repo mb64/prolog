@@ -8,7 +8,7 @@ use rustyline::Editor;
 use std::collections::HashMap;
 
 pub trait Runner {
-    fn solution(&mut self, ctx: &Context, vars: &mut VarTable<'_>) -> Result<Command>;
+    fn solution(&mut self, ctx: &Context, vars: &mut VarTable<'_>) -> SolverResult;
 }
 
 pub struct Printing<'r, R> {
@@ -29,7 +29,7 @@ impl<R> Printing<'_, R> {
 }
 
 impl<R: Runner> Runner for Printing<'_, R> {
-    fn solution(&mut self, ctx: &Context, vars: &mut VarTable<'_>) -> Result<Command> {
+    fn solution(&mut self, ctx: &Context, vars: &mut VarTable<'_>) -> SolverResult {
         println!("\nSolution:");
         for (&name, &var) in &self.interesting_vars {
             println!(
@@ -43,7 +43,7 @@ impl<R: Runner> Runner for Printing<'_, R> {
 }
 
 impl Runner for Editor<()> {
-    fn solution(&mut self, _ctx: &Context, _vars: &mut VarTable<'_>) -> Result<Command> {
+    fn solution(&mut self, _ctx: &Context, _vars: &mut VarTable<'_>) -> SolverResult {
         // TODO: prompt user in a better way
         let response = match self.readline("? ") {
             Ok(r) => r,
@@ -63,21 +63,21 @@ pub struct OneSoln;
 pub struct AllSolns;
 
 impl Runner for AllSolns {
-    fn solution(&mut self, _ctx: &Context, _vars: &mut VarTable<'_>) -> Result<Command> {
+    fn solution(&mut self, _ctx: &Context, _vars: &mut VarTable<'_>) -> SolverResult {
         Ok(Command::KeepGoing)
     }
 }
 impl Runner for OneSoln {
-    fn solution(&mut self, _ctx: &Context, _vars: &mut VarTable<'_>) -> Result<Command> {
+    fn solution(&mut self, _ctx: &Context, _vars: &mut VarTable<'_>) -> SolverResult {
         Ok(Command::Stop)
     }
 }
 
 fn reify_ast<'a>(ast: &Expr, vars: &mut VarTable<'a>, my_vars: &mut HashMap<Spur, VarId>) -> VarId {
     match *ast {
-        Expr::Wildcard => vars.new_var(),
-        Expr::Var(name) => *my_vars.entry(name).or_insert_with(|| vars.new_var()),
-        Expr::Functor { name, ref args } => {
+        Expr::Wildcard { .. } => vars.new_var(),
+        Expr::Var { name, .. } => *my_vars.entry(name).or_insert_with(|| vars.new_var()),
+        Expr::Functor { name, ref args, .. } => {
             let args = args
                 .iter()
                 .map(|a| reify_ast(a, vars, my_vars))

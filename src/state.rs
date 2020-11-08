@@ -1,18 +1,67 @@
 //! The main datastructures
 
+use codespan_reporting::files::SimpleFiles;
+use codespan_reporting::term::DisplayStyle;
 use lasso::{Rodeo, Spur};
 use scoped_map::{ScopedMap, ScopedMapBase};
 use std::collections::{hash_map::Entry, HashMap};
 use std::fmt::{self, Write};
 
-use crate::parser;
+use crate::parser::{self, Span};
 use crate::runner::Runner;
 
-/// An unrecoverable error
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct SolveError(pub &'static str);
+/// A fatal, unrecoverable error
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct SolveError {
+    pub message: String,
+    /// A trace of every clause item on the way to encountering this error
+    pub trace: Vec<Span>,
+}
 
-pub type Result<T> = std::result::Result<T, SolveError>;
+impl<T: Into<String>> From<T> for Box<SolveError> {
+    fn from(message: T) -> Self {
+        Box::new(SolveError {
+            message: message.into(),
+            trace: vec![],
+        })
+    }
+}
+impl SolveError {
+    pub fn add_trace(mut self: Box<Self>, span: Span) -> Box<Self> {
+        self.trace.push(span);
+        self
+    }
+
+    /// Print this error
+    /// The given display style is used for all notes
+    pub fn report(&self, ctx: &Context, display_style: DisplayStyle) {
+        use codespan_reporting::diagnostic::Severity::*;
+        use codespan_reporting::diagnostic::{Diagnostic, Label};
+        use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
+
+        let writer = StandardStream::stderr(ColorChoice::Always);
+        let mut config = codespan_reporting::term::Config::default();
+
+        for (i, span) in self.trace.iter().copied().enumerate() {
+            let (severity, message) = if i == 0 {
+                (Error, self.message.as_str())
+            } else {
+                (Note, "Called from here")
+            };
+            let diagnostic = Diagnostic::new(severity)
+                .with_message(message)
+                .with_labels(vec![Label::primary(
+                    span.file_id as usize,
+                    span.start..span.start + span.len as usize,
+                )]);
+
+            codespan_reporting::term::emit(&mut writer.lock(), &config, &ctx.files, &diagnostic)
+                .unwrap();
+
+            config.display_style = display_style.clone();
+        }
+    }
+}
 
 /// What to do next
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -21,6 +70,9 @@ pub enum Command {
     Stop,
 }
 pub use Command::*;
+
+/// `SolverResult` is returned by basically every function
+pub type SolverResult = Result<Command, Box<SolveError>>;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VarId(u64);
@@ -156,14 +208,11 @@ impl<'a> VarTable<'a> {
 pub struct Context {
     pub rels: HashMap<RelId, Relation>,
     pub rodeo: Rodeo,
+    pub files: SimpleFiles<String, String>,
 }
 
 impl Context {
-    pub fn add_clause(
-        &mut self,
-        rel_id: RelId,
-        clause: Clause,
-    ) -> std::result::Result<(), &'static str> {
+    pub fn add_clause(&mut self, rel_id: RelId, clause: Clause) -> Result<(), &'static str> {
         let entry = self
             .rels
             .entry(rel_id)
@@ -178,10 +227,7 @@ impl Context {
         }
     }
 
-    pub fn add_ast_clause(
-        &mut self,
-        ast_clause: parser::Clause,
-    ) -> std::result::Result<(), &'static str> {
+    pub fn add_ast_clause(&mut self, ast_clause: parser::Clause) -> Result<(), &'static str> {
         let rel_id = RelId {
             name: ast_clause.functor,
             arity: ast_clause.args.len() as u32,
@@ -193,7 +239,7 @@ impl Context {
 
 #[derive(Clone)]
 pub enum Relation {
-    Builtin(fn(&Context, &mut VarTable<'_>, Box<[VarId]>, &mut dyn Runner) -> Result<Command>),
+    Builtin(fn(&Context, &mut VarTable<'_>, Box<[VarId]>, &mut dyn Runner) -> SolverResult),
     User(Vec<Clause>),
 }
 
@@ -221,7 +267,7 @@ pub struct Clause {
     /// The first `n` locals are the parameters.
     locals: u32,
     /// The requirements
-    pub reqs: Vec<ClauseItem>,
+    pub reqs: Vec<(Span, ClauseItem)>,
 }
 
 impl Clause {
@@ -238,19 +284,19 @@ impl Clause {
             locals: &mut HashMap<Spur, Local>,
         ) -> ClauseItem {
             match *ast {
-                Expr::Wildcard => {
+                Expr::Wildcard { .. } => {
                     let l = Local(*next_local);
                     *next_local += 1;
                     ClauseItem::Var(l)
                 }
-                Expr::Var(n) => {
-                    let l = locals.entry(n).or_insert_with(|| {
+                Expr::Var { name, .. } => {
+                    let l = locals.entry(name).or_insert_with(|| {
                         *next_local += 1;
                         Local(*next_local - 1)
                     });
                     ClauseItem::Var(*l)
                 }
-                Expr::Functor { name, ref args } => ClauseItem::Functor {
+                Expr::Functor { name, ref args, .. } => ClauseItem::Functor {
                     name,
                     args: args
                         .iter()
@@ -270,25 +316,28 @@ impl Clause {
 
         for (i, arg) in ast.args.iter().enumerate() {
             match *arg {
-                Expr::Wildcard => (),
-                Expr::Var(n) => match locals.entry(n) {
+                Expr::Wildcard { .. } => (),
+                Expr::Var { span, name } => match locals.entry(name) {
                     Entry::Occupied(entry) => {
                         let l = *entry.get();
-                        reqs.push(unify_arg(i, ClauseItem::Var(l)));
+                        reqs.push((span, unify_arg(i, ClauseItem::Var(l))));
                     }
                     Entry::Vacant(entry) => {
                         entry.insert(Local::arg(i as i32));
                     }
                 },
-                Expr::Functor { .. } => {
+                Expr::Functor { span, .. } => {
                     let e = translate_expr(arg, &mut next_local, &mut locals);
-                    reqs.push(unify_arg(i, e));
+                    reqs.push((span, unify_arg(i, e)));
                 }
             }
         }
 
         for cond in &ast.conditions {
-            reqs.push(translate_expr(cond, &mut next_local, &mut locals));
+            reqs.push((
+                cond.span(),
+                translate_expr(cond, &mut next_local, &mut locals),
+            ));
         }
 
         Clause {
