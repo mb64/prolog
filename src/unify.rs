@@ -1,6 +1,5 @@
 //! Unification
 
-use crate::parser::Span;
 use crate::runner::*;
 use crate::state::*;
 
@@ -60,64 +59,27 @@ impl<'a, 'v> State<'a, 'v> {
                     let args = args.clone();
                     func(self.ctx, self.vars, args, self.runner)
                 }
-                Some(Relation::User(clauses)) => {
-                    let args = args.clone();
-                    // FIXME: don't need the last clause to be backtrackable
-                    // Really wish Rust had tail recursion
-                    for clause in clauses {
-                        // Would be good not to clone
-                        let args = args.clone();
-                        let mut tmp_state = State {
-                            ctx: self.ctx,
-                            vars: &mut self.vars.backtrackable(),
-                            runner: self.runner,
-                        };
-                        match tmp_state.solve_clause(clause, args)? {
-                            Command::Stop => return Ok(Command::Stop),
-                            Command::KeepGoing => continue,
+                Some(Relation::User(clauses)) => match &**clauses {
+                    [] => Ok(Command::KeepGoing),
+                    [clause] => self.solve_clause(clause, args),
+                    [first @ .., last] => {
+                        for clause in first {
+                            // Would be good not to clone
+                            let args = args.clone();
+                            let mut tmp_state = State {
+                                ctx: self.ctx,
+                                vars: &mut self.vars.backtrackable(),
+                                runner: self.runner,
+                            };
+                            match tmp_state.solve_clause(clause, args)? {
+                                Command::Stop => return Ok(Command::Stop),
+                                Command::KeepGoing => continue,
+                            }
                         }
+                        self.solve_clause(last, args)
                     }
-                    Ok(Command::KeepGoing)
-                }
+                },
             },
-        }
-    }
-}
-
-// Aaaa this is really shitty
-// CPS without tail calls trashing the stack
-// whatever, it's doesn't need to be fancy
-
-struct All<'a> {
-    items: &'a [(Span, VarId)],
-    base: &'a mut dyn Runner,
-}
-
-impl<'a> Runner for All<'a> {
-    fn solution(&mut self, ctx: &Context, vars: &mut VarTable<'_>) -> SolverResult {
-        match *self.items {
-            [] => self.base.solution(ctx, vars),
-            [(span, head)] => {
-                log::trace!("solving last clause");
-                let mut state = State {
-                    ctx,
-                    vars,
-                    runner: self.base,
-                };
-                state.solve(head).map_err(|e| e.add_trace(span))
-            }
-            [(span, head), ref tail @ ..] => {
-                log::trace!("solving next clause");
-                let mut state = State {
-                    ctx,
-                    vars,
-                    runner: &mut All {
-                        items: tail,
-                        base: self.base,
-                    },
-                };
-                state.solve(head).map_err(|e| e.add_trace(span))
-            }
         }
     }
 }

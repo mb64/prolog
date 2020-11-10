@@ -1,7 +1,8 @@
 //! Runner: the logic to control the unification engine
 
-use crate::parser::Expr;
+use crate::parser::{Expr, Span};
 use crate::state::*;
+use crate::unify::State;
 use itertools::Itertools;
 use lasso::{Rodeo, Spur};
 use rustyline::Editor;
@@ -73,6 +74,44 @@ impl Runner for OneSoln {
     }
 }
 
+// Aaaa this is really shitty
+// CPS without tail calls trashing the stack
+// whatever, it's doesn't need to be fancy
+
+pub struct All<'a> {
+    pub items: &'a [(Span, VarId)],
+    pub base: &'a mut dyn Runner,
+}
+
+impl<'a> Runner for All<'a> {
+    fn solution(&mut self, ctx: &Context, vars: &mut VarTable<'_>) -> SolverResult {
+        match *self.items {
+            [] => self.base.solution(ctx, vars),
+            [(span, head)] => {
+                log::trace!("solving last clause");
+                let mut state = State {
+                    ctx,
+                    vars,
+                    runner: self.base,
+                };
+                state.solve(head).map_err(|e| e.add_trace(span))
+            }
+            [(span, head), ref tail @ ..] => {
+                log::trace!("solving next clause");
+                let mut state = State {
+                    ctx,
+                    vars,
+                    runner: &mut All {
+                        items: tail,
+                        base: self.base,
+                    },
+                };
+                state.solve(head).map_err(|e| e.add_trace(span))
+            }
+        }
+    }
+}
+
 fn reify_ast<'a>(ast: &Expr, vars: &mut VarTable<'a>, my_vars: &mut HashMap<Spur, VarId>) -> VarId {
     match *ast {
         Expr::Wildcard { .. } => vars.new_var(),
@@ -96,21 +135,46 @@ fn reify_ast<'a>(ast: &Expr, vars: &mut VarTable<'a>, my_vars: &mut HashMap<Spur
     }
 }
 
-/// Returns `(var, runner)`.
-///
-/// Next, run `unify::State {..}.solve(var)`
-pub fn from_question<'e, 'v, R>(
-    q: &Expr,
+///// Returns `(var, runner)`.
+/////
+///// Next, run `unify::State {..}.solve(var)`
+//pub fn from_question<'e, 'v, R>(
+//    q: &Expr,
+//    r: &'e mut R,
+//    vars: &mut VarTable<'v>,
+//) -> (VarId, Printing<'e, R>) {
+//    let mut interesting = HashMap::new();
+//    let res = reify_ast(q, vars, &mut interesting);
+//    (
+//        res,
+//        Printing {
+//            interesting_vars: interesting,
+//            base: r,
+//        },
+//    )
+//}
+
+pub fn do_query<'e, 'v, R: Runner>(
+    q: &[Expr],
     r: &'e mut R,
+    ctx: &Context,
     vars: &mut VarTable<'v>,
-) -> (VarId, Printing<'e, R>) {
+) -> SolverResult {
     let mut interesting = HashMap::new();
-    let res = reify_ast(q, vars, &mut interesting);
-    (
-        res,
-        Printing {
-            interesting_vars: interesting,
-            base: r,
-        },
-    )
+    let items = q
+        .iter()
+        .map(|e| (e.span(), reify_ast(e, vars, &mut interesting)))
+        .collect::<Vec<_>>();
+
+    let mut base = Printing {
+        interesting_vars: interesting,
+        base: r,
+    };
+    log::debug!("{}", base.dbg(&ctx.rodeo));
+
+    All {
+        items: &items[..],
+        base: &mut base,
+    }
+    .solution(ctx, vars)
 }

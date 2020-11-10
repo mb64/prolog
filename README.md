@@ -66,7 +66,7 @@ More usability:
  - Reset REPL
  - Command-line args to load files, run queries, optional REPL
  - Nicer lexer: allow unicode, base-n literals, etc
- - Allow multiple goals in a query
+ - ~~Allow multiple goals in a query~~
  - ~~Print atoms as `x`, not `x()`~~
  - ~~Allow `_Variables`, and~~ generate warnings for singleton variables
     * Question -- should it report the found values of `_Variables`? SWI Prolog

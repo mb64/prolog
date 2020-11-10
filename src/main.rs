@@ -15,29 +15,21 @@ pub mod unify;
 use parser::ReplItem;
 use runner::Runner;
 use state::{Command, Context, VarTable, VarTableBase};
-use unify::State;
 
 fn process_query<R: Runner>(
-    ast: parser::Expr,
+    ast: Vec<parser::Expr>,
     ctx: &Context,
     vars_base: &VarTableBase,
     runner: &mut R,
 ) {
     let mut vars = VarTable::new(&vars_base);
 
-    let (query, mut runner) = runner::from_question(&ast, runner, &mut vars);
-    log::debug!("{}", runner.dbg(&ctx.rodeo));
-
-    let mut state = State {
-        ctx,
-        vars: &mut vars,
-        runner: &mut runner,
-    };
+    let result = runner::do_query(&ast[..], runner, ctx, &mut vars);
 
     // TODO: configurable error display style
     let style = DisplayStyle::Rich;
 
-    match state.solve(query).map_err(|e| e.add_trace(ast.span())) {
+    match result {
         Ok(Command::KeepGoing) => println!("\nNo."),
         Ok(Command::Stop) => println!("\nYes."),
         Err(e) => e.report(ctx, style),

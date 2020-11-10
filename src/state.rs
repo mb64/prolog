@@ -315,6 +315,7 @@ impl Context {
                 cs.push(clause);
                 Ok(())
             }
+            // TODO: report as a full error, with its span
             Relation::Builtin(_) => Err("Cannot extend builtin relation"),
         }
     }

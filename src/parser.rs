@@ -194,7 +194,7 @@ impl Expr {
 /// TODO: change it to be more prolog-y?
 pub enum ReplItem {
     Clauses(Vec<Clause>),
-    Question(Expr),
+    Question(Vec<Expr>),
 }
 
 pub fn parse(ctx: &mut Context, file_name: String, input: String) -> Option<Vec<Clause>> {

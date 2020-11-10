@@ -44,7 +44,7 @@ pub ReplItem: ReplItem = {
     <Question> => ReplItem::Question(<>),
 }
 
-Question = <Expr> "?";
+Question = <Exprs> "?";
 
 Clause: Clause = {
     <l:@L> <f:Functor> "." <r:@R> => {
