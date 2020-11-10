@@ -274,6 +274,8 @@ impl VarTable<'_> {
     fn fmt_list(&self, f: &mut impl Write, var: VarId, ctx: &Context) -> fmt::Result {
         let item = self.map.lookup(&var).unwrap();
         match *item {
+            Item::Var(v) => self.fmt_list(f, v, ctx),
+
             // Nil
             Item::Functor { name, args: &[] } if name == ctx.builtins.nil => write!(f, "]"),
             // Cons
