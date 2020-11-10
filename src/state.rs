@@ -172,33 +172,36 @@ impl<'a> VarTable<'a> {
 impl<'a> VarTable<'a> {
     pub fn show(&self, var: VarId, rodeo: &Rodeo) -> String {
         let mut s = String::new();
-        self.fmt_helper(&mut s, var, rodeo, false);
+        self.fmt_helper(&mut s, var, rodeo, false).unwrap();
         s
     }
 
     pub fn dbg(&self, var: VarId, rodeo: &Rodeo) -> String {
         let mut s = String::new();
-        self.fmt_helper(&mut s, var, rodeo, true);
+        self.fmt_helper(&mut s, var, rodeo, true).unwrap();
         s
     }
 
-    fn fmt_helper(&self, f: &mut impl Write, var: VarId, rodeo: &Rodeo, dbg: bool) {
+    fn fmt_helper(&self, f: &mut impl Write, var: VarId, rodeo: &Rodeo, dbg: bool) -> fmt::Result {
         if dbg {
-            write!(f, "{}", var).unwrap();
+            write!(f, "{}", var)?;
         }
         let item = self.map.lookup(&var).unwrap();
         match *item {
-            Item::Var(v) if v == var => write!(f, "{}", v).unwrap(),
+            Item::Var(v) if v == var => write!(f, "{}", v),
             Item::Var(v) => self.fmt_helper(f, v, rodeo, dbg),
             Item::Functor { name, ref args } => {
-                write!(f, "{}(", rodeo.resolve(&name)).unwrap();
-                for (i, arg) in args.iter().copied().enumerate() {
-                    self.fmt_helper(f, arg, rodeo, dbg);
-                    if i != args.len() - 1 {
-                        write!(f, ", ").unwrap();
+                write!(f, "{}", rodeo.resolve(&name))?;
+                match **args {
+                    [] => Ok(()),
+                    [first, ref rest @ ..] => {
+                        write!(f, "({}", first)?;
+                        for arg in rest {
+                            write!(f, ", {}", arg)?;
+                        }
+                        write!(f, ")")
                     }
                 }
-                write!(f, ")").unwrap();
             }
         }
     }

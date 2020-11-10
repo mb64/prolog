@@ -20,19 +20,19 @@ $ cargo run
 > path(x, Place) ?
 
 Solution:
-   Place = x()
+   Place = x
 ? ;
 
 Solution:
-   Place = y()
+   Place = y
 ? ;
 
 Solution:
-   Place = z()
+   Place = z
 ? ;
 
 Solution:
-   Place = w()
+   Place = w
 ? 
 
 Yes.
@@ -65,9 +65,12 @@ More usability:
  - Reset REPL
  - Command-line args to load files, run queries, optional REPL
  - Nicer lexer: allow for unicode, base-n literals, etc
- - Allow `_Variables`, and generate warnings for singleton variables
- - ~~Errors? Would be nice to have debug info on each clause, and be able to give
-   pretty stacktraces on fatal errors~~ Done!
+ - ~~Print atoms as `x`, not `x()`~~
+ - ~~Allow `_Variables`, and~~ generate warnings for singleton variables
+    * Question -- should it report the found values of `_Variables`? SWI Prolog
+      does but GNU Prolog doesn't
+ - ~~Errors? Would be nice to have debug info on each clause, and be able to
+   give pretty stacktraces on fatal errors~~ Done!
  - Maybe don't abuse `codespan_reporting` for stack traces
  - Debugging facilities?
  - Investigate alternatives to rustyline
