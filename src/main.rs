@@ -22,7 +22,9 @@ fn process_query<R: Runner>(
     base_map: &VarTableBase,
     runner: &mut R,
 ) {
-    let mut vars = VarTable::new(&base_map);
+    // TODO arenas: make an arena
+    // Better yet, refactor into a struct VarTableBase that handles it all
+    let mut vars = VarTable::new(&base_map, todo!());
 
     let (query, mut runner) = runner::from_question(&ast, runner, &mut vars);
     log::debug!("{}", runner.dbg(&ctx.rodeo));

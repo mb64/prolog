@@ -7,6 +7,7 @@ build = "build.rs" # For LALRPOP
 
 [dependencies]
 scoped_map = { git = "https://github.com/mb64/scoped_map.git", branch = "main" }
+typed-arena = { git = "https://github.com/mb64/rust-typed-arena" }
 lasso = "0.3.1"
 logos = "0.11.4"
 lalrpop-util = "0.19.0"

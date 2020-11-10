@@ -51,7 +51,7 @@ More datatypes:
 More builtins:
  - Arithmetic
  - `is`
- - Negation: ~~`not`~~ done, `\=`, `\+`
+ - Negation: ~~`not`~~, `\=`, `\+`
  - `cpu_time`, to run benchmarks
  - load clauses from file
  - Cuts: `!` (will probably require some restructuring)
@@ -77,6 +77,7 @@ More usability:
 
 More fancy datastructures:
  - Probably not
+ - Allocate functor arguments in an arena -- switch `Box<[VarId]>` to `&'arena [VarId]`
  - For `,` operator, figure out something better than CPS
  - Rewrite `scoped_map` to give a different interface: single map, mutable
    operations to push and pop scope

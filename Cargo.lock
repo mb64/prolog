@@ -572,6 +572,7 @@ dependencies = [
  "pretty_env_logger",
  "rustyline",
  "scoped_map",
+ "typed-arena",
 ]
 
 [[package]]
@@ -657,8 +658,8 @@ dependencies = [
 
 [[package]]
 name = "scoped_map"
-version = "0.1.0"
-source = "git+https://github.com/mb64/scoped_map.git?branch=main#20bac48495fc72576e99dbcecbffe49a47cbcc0d"
+version = "0.2.0"
+source = "git+https://github.com/mb64/scoped_map.git?branch=main#79b67877d513756ace7c54e7574112deafe56851"
 dependencies = [
  "ahash 0.4.6",
  "typed-arena",
@@ -770,7 +771,7 @@ dependencies = [
 [[package]]
 name = "typed-arena"
 version = "2.0.1"
-source = "git+https://github.com/mb64/rust-typed-arena.git#43586bc0f634aeefbd4bb4196298a4c9ba410a0a"
+source = "git+https://github.com/mb64/rust-typed-arena#43586bc0f634aeefbd4bb4196298a4c9ba410a0a"
 
 [[package]]
 name = "typenum"

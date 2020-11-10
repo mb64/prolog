@@ -6,6 +6,7 @@ use lasso::{Rodeo, Spur};
 use scoped_map::{ScopedMap, ScopedMapBase};
 use std::collections::{hash_map::Entry, HashMap};
 use std::fmt::{self, Write};
+use typed_arena::{Arena, SubArena};
 
 use crate::parser::{self, Span};
 use crate::runner::Runner;
@@ -88,45 +89,60 @@ pub struct RelId {
     pub arity: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Item {
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Item<'a> {
+    /// Could be anything -- not resolved/unified yet
+    Unresolved,
     /// Look up what it is in the current State
     Var(VarId),
+    /// An integer -- a simple representation since there's no fancy constraints
+    // TODO: should it also have floats?
+    // Also, look into adding constraints, and maybe a solver for finite domains
+    Number(i64),
     /// A functor is like f(Args...)
-    Functor { name: Spur, args: Box<[VarId]> },
+    Functor { name: Spur, args: &'a [VarId] },
 }
 
-pub type VarTableBase = ScopedMapBase<VarId, Item>;
+pub type VarTableBase = ScopedMapBase<VarId, Item<'static>>;
 
 pub struct VarTable<'a> {
-    map: ScopedMap<'a, VarId, Item>,
+    map: ScopedMap<'a, VarId, Item<'a>>,
     next_var: u64,
+    arena: SubArena<'a, VarId>,
 }
 
-impl<'a> VarTable<'a> {
-    pub fn new(base: &'a VarTableBase) -> Self {
+impl<'v> VarTable<'v> {
+    pub fn new(base: &'v VarTableBase, arena: &'v Arena<VarId>) -> Self {
         Self {
             map: base.make_map(),
             next_var: 0,
+            arena: SubArena::new(arena),
         }
     }
 
     pub fn new_var(&mut self) -> VarId {
         let new_id = VarId(self.next_var);
         self.next_var += 1;
-        self.map.insert(new_id, Item::Var(new_id));
+        self.map.insert(new_id, Item::Unresolved);
         new_id
     }
 
-    pub fn new_var_of(&mut self, item: Item) -> VarId {
+    pub fn new_var_of(&mut self, item: Item<'v>) -> VarId {
         let new_id = VarId(self.next_var);
         self.next_var += 1;
         self.map.insert(new_id, item);
         new_id
     }
 
+    pub fn new_var_of_functor(&mut self, name: Spur, args: impl Iterator<Item = VarId>) -> VarId {
+        // TODO: figure this out
+        // let args = self.arena.alloc_extend(args);
+        let args = todo!();
+        self.new_var_of(Item::Functor { name, args })
+    }
+
     /// Note: Only do this on variables that currently refer to themselves
-    pub fn update(&mut self, var: VarId, to: Item) {
+    pub fn update(&mut self, var: VarId, to: Item<'v>) {
         self.map.insert(var, to);
     }
 
@@ -134,42 +150,48 @@ impl<'a> VarTable<'a> {
         VarTable {
             map: self.map.new_scope(),
             next_var: self.next_var,
+            arena: SubArena::new(&*self.arena),
         }
     }
 
-    pub fn lookup_helper(&mut self, var: VarId) -> VarId {
+    fn lookup_helper(&mut self, var: VarId) -> VarId {
         let i = self.map.lookup(&var).unwrap();
-        match i {
-            &Item::Var(v) if v == var => var,
-            &Item::Var(v) => {
-                let res = self.lookup_helper(v);
-                // Collapse indirection
+        if let Item::Var(v) = *i {
+            let res = self.lookup_helper(v);
+            // Collapse indirection
+            if v != res {
                 self.map.insert(var, Item::Var(res));
-                res
             }
-            Item::Functor { .. } => return var,
+            res
+        } else {
+            var
         }
     }
 
-    pub fn lookup(&mut self, var: VarId) -> &Item {
-        let i = self.map.lookup(&var).unwrap();
-        match i {
-            &Item::Var(v) if v == var => i,
-            &Item::Var(v) => {
-                let w = self.lookup_helper(v);
-                self.map.insert(var, Item::Var(w));
-                self.map.lookup(&w).unwrap()
-            }
-            Item::Functor { .. } => i,
+    /// Like `.lookup()`, but it also returns the main varid for that variable
+    pub fn lookup_with_varid(&mut self, var: VarId) -> (VarId, Item<'v>) {
+        let i = *self.map.lookup(&var).unwrap();
+        if let Item::Var(v) = i {
+            let w = self.lookup_helper(v);
+            self.map.insert(var, Item::Var(w));
+            (w, *self.map.lookup(&w).unwrap())
+        } else {
+            (var, i)
         }
     }
 
-    pub fn lookup_imm(&self, var: VarId) -> &Item {
-        self.map.lookup(&var).unwrap()
+    /// Lookup never returns `Item::Var`
+    pub fn lookup(&mut self, var: VarId) -> Item<'v> {
+        self.lookup_with_varid(var).1
     }
+
+    // pub fn lookup_imm(&self, var: VarId) -> &Item {
+    //     self.map.lookup(&var).unwrap()
+    // }
 }
 
-impl<'a> VarTable<'a> {
+/// Functions to display variables
+impl VarTable<'_> {
     pub fn show(&self, var: VarId, rodeo: &Rodeo) -> String {
         let mut s = String::new();
         self.fmt_helper(&mut s, var, rodeo, false).unwrap();
@@ -188,8 +210,9 @@ impl<'a> VarTable<'a> {
         }
         let item = self.map.lookup(&var).unwrap();
         match *item {
-            Item::Var(v) if v == var => write!(f, "{}", v),
+            Item::Unresolved => write!(f, "{}", var),
             Item::Var(v) => self.fmt_helper(f, v, rodeo, dbg),
+            Item::Number(x) => write!(f, "{}", x),
             Item::Functor { name, ref args } => {
                 write!(f, "{}", rodeo.resolve(&name))?;
                 match **args {
@@ -241,7 +264,14 @@ impl Context {
 
 #[derive(Clone)]
 pub enum Relation {
-    Builtin(fn(&Context, &mut VarTable<'_>, Box<[VarId]>, &mut dyn Runner) -> SolverResult),
+    Builtin(
+        for<'temp, 'v> fn(
+            &'temp Context,
+            &'temp mut VarTable<'v>,
+            &'v [VarId],
+            &'temp mut dyn Runner,
+        ) -> SolverResult,
+    ),
     User(Vec<Clause>),
 }
 
@@ -351,14 +381,14 @@ impl Clause {
 
 /// A collection holding the local variables and parameters
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct LocalVars {
-    args: Box<[VarId]>,
+pub struct LocalVars<'v> {
+    args: &'v [VarId],
     start: u64,
     count: u32,
 }
 
-impl VarTable<'_> {
-    pub fn allocate_locals<'a>(&mut self, clause: &Clause, args: Box<[VarId]>) -> LocalVars {
+impl<'v> VarTable<'v> {
+    pub fn allocate_locals(&mut self, clause: &Clause, args: &'v [VarId]) -> LocalVars<'v> {
         let start = self.next_var;
         let res = LocalVars {
             args,
@@ -373,7 +403,7 @@ impl VarTable<'_> {
     }
 }
 
-impl LocalVars {
+impl LocalVars<'_> {
     pub fn get(&self, local: Local) -> VarId {
         if local.0 < 0 {
             self.args[(-local.0 - 1) as usize]

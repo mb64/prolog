@@ -7,13 +7,18 @@ use crate::runner::*;
 use crate::state::*;
 use crate::unify::State;
 
-type Builtin = fn(&Context, &mut VarTable<'_>, Box<[VarId]>, &mut dyn Runner) -> SolverResult;
+type Builtin = for<'temp, 'v> fn(
+    &'temp Context,
+    &'temp mut VarTable<'v>,
+    &'v [VarId],
+    &'temp mut dyn Runner,
+) -> SolverResult;
 
 /// `fail` builtin -- immediately backtracks
 fn fail(
     _ctx: &Context,
     _vars: &mut VarTable<'_>,
-    _args: Box<[VarId]>,
+    _args: &[VarId],
     _runner: &mut dyn Runner,
 ) -> SolverResult {
     Ok(Command::KeepGoing)
@@ -23,7 +28,7 @@ fn fail(
 fn print(
     ctx: &Context,
     vars: &mut VarTable<'_>,
-    args: Box<[VarId]>,
+    args: &[VarId],
     runner: &mut dyn Runner,
 ) -> SolverResult {
     match *args {
@@ -37,7 +42,7 @@ fn print(
 fn println(
     ctx: &Context,
     vars: &mut VarTable<'_>,
-    args: Box<[VarId]>,
+    args: &[VarId],
     runner: &mut dyn Runner,
 ) -> SolverResult {
     match *args {
@@ -51,7 +56,7 @@ fn println(
 fn nl(
     ctx: &Context,
     vars: &mut VarTable<'_>,
-    args: Box<[VarId]>,
+    args: &[VarId],
     runner: &mut dyn Runner,
 ) -> SolverResult {
     match *args {
@@ -65,7 +70,7 @@ fn nl(
 fn unify(
     ctx: &Context,
     vars: &mut VarTable<'_>,
-    args: Box<[VarId]>,
+    args: &[VarId],
     runner: &mut dyn Runner,
 ) -> SolverResult {
     let (a, b) = match *args {
@@ -79,7 +84,7 @@ fn unify(
 fn not(
     ctx: &Context,
     vars: &mut VarTable<'_>,
-    args: Box<[VarId]>,
+    args: &[VarId],
     runner: &mut dyn Runner,
 ) -> SolverResult {
     match *args {
