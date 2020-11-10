@@ -7,17 +7,21 @@ use crate::runner::*;
 use crate::state::*;
 use crate::unify::State;
 
-/// Gotta remember what `Spur` is each arithmetic operator
-pub struct Arith {
-    add: Spur,
-    sub: Spur,
-    mul: Spur,
-    div: Spur,
+/// Part of the `Context`, it stores the `Spur`s associated with a bunch of built-in functors
+pub struct Builtins {
+    pub cons: Spur,
+    pub nil: Spur,
+    pub add: Spur,
+    pub sub: Spur,
+    pub mul: Spur,
+    pub div: Spur,
 }
 
-impl Arith {
+impl Builtins {
     pub fn new(rodeo: &mut Rodeo) -> Self {
         Self {
+            cons: rodeo.get_or_intern_static("$cons"),
+            nil: rodeo.get_or_intern_static("$nil"),
             add: rodeo.get_or_intern_static("'+'"),
             sub: rodeo.get_or_intern_static("'-'"),
             mul: rodeo.get_or_intern_static("'*'"),
@@ -46,7 +50,7 @@ fn print(
     runner: &mut dyn Runner,
 ) -> SolverResult {
     match *args {
-        [x] => print!("{}", vars.show(x, &ctx.rodeo)),
+        [x] => print!("{}", vars.show(x, ctx)),
         _ => panic!("Wrong number of arguments"),
     }
     runner.solution(ctx, vars)
@@ -60,7 +64,7 @@ fn println(
     runner: &mut dyn Runner,
 ) -> SolverResult {
     match *args {
-        [x] => println!("{}", vars.show(x, &ctx.rodeo)),
+        [x] => println!("{}", vars.show(x, ctx)),
         _ => panic!("Wrong number of arguments"),
     }
     runner.solution(ctx, vars)
@@ -106,7 +110,7 @@ fn not(
         _ => panic!("Wrong number of arguments"),
     };
 
-    log::trace!("trying goal {}", vars.dbg(arg, &ctx.rodeo));
+    log::trace!("trying goal {}", vars.dbg(arg, ctx));
     let mut new_vars = vars.backtrackable();
     let mut state = State {
         ctx,
@@ -143,8 +147,8 @@ fn not_unify(
 
     log::trace!(
         "trying to unify {} and {}",
-        vars.dbg(a, &ctx.rodeo),
-        vars.dbg(b, &ctx.rodeo)
+        vars.dbg(a, ctx),
+        vars.dbg(b, ctx)
     );
     let mut new_vars = vars.backtrackable();
     let mut state = State {
@@ -174,14 +178,14 @@ fn compute(ctx: &Context, vars: &mut VarTable<'_>, var: VarId) -> SolverResult<i
         Item::Unresolved => Err("Can't compute: contains uninstantiated variable(s)".into()),
         Item::Var(_) => panic!("lookup {} returned var", var),
         Item::Number(x) => Ok(x),
-        Item::Functor { name, args } if name == ctx.arith.add => {
+        Item::Functor { name, args } if name == ctx.builtins.add => {
             let mut sum = 0;
             for &arg in args {
                 sum += compute(ctx, vars, arg)?;
             }
             Ok(sum)
         }
-        Item::Functor { name, args } if name == ctx.arith.sub => match *args {
+        Item::Functor { name, args } if name == ctx.builtins.sub => match *args {
             [x] => Ok(-compute(ctx, vars, x)?),
             [x, y] => Ok(compute(ctx, vars, x)? - compute(ctx, vars, y)?),
             _ => Err(format!(
@@ -190,14 +194,14 @@ fn compute(ctx: &Context, vars: &mut VarTable<'_>, var: VarId) -> SolverResult<i
             )
             .into()),
         },
-        Item::Functor { name, args } if name == ctx.arith.mul => {
+        Item::Functor { name, args } if name == ctx.builtins.mul => {
             let mut prod = 0;
             for &arg in args {
                 prod *= compute(ctx, vars, arg)?;
             }
             Ok(prod)
         }
-        Item::Functor { name, args } if name == ctx.arith.div => match *args {
+        Item::Functor { name, args } if name == ctx.builtins.div => match *args {
             [x, y] => Ok(compute(ctx, vars, x)? / compute(ctx, vars, y)?),
             _ => Err(format!(
                 "Can't compute: wrong number of arguments for '/' ({})",

@@ -36,11 +36,7 @@ impl<R: Runner> Runner for Printing<'_, R> {
         }
         println!("\nSolution:");
         for (&name, &var) in &self.interesting_vars {
-            println!(
-                "   {} = {}",
-                ctx.rodeo.resolve(&name),
-                vars.show(var, &ctx.rodeo)
-            );
+            println!("   {} = {}", ctx.rodeo.resolve(&name), vars.show(var, ctx));
         }
         self.base.solution(ctx, vars)
     }

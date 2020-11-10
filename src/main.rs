@@ -2,6 +2,7 @@
 
 #![allow(mutable_borrow_reservation_conflict)]
 
+use codespan_reporting::term::DisplayStyle;
 use lasso::Rodeo;
 use rustyline::Editor;
 
@@ -33,11 +34,13 @@ fn process_query<R: Runner>(
         runner: &mut runner,
     };
 
+    // TODO: configurable error display style
+    let style = DisplayStyle::Rich;
+
     match state.solve(query).map_err(|e| e.add_trace(ast.span())) {
         Ok(Command::KeepGoing) => println!("\nNo."),
         Ok(Command::Stop) => println!("\nYes."),
-        // TODO: configurable error display style
-        Err(e) => e.report(ctx, codespan_reporting::term::DisplayStyle::Short),
+        Err(e) => e.report(ctx, style),
     }
 }
 
@@ -83,13 +86,13 @@ fn main() {
     let mut rodeo = Rodeo::default();
     let rels = builtins::builtins(&mut rodeo);
     let files = codespan_reporting::files::SimpleFiles::new();
-    let arith = builtins::Arith::new(&mut rodeo);
+    let builtins = builtins::Builtins::new(&mut rodeo);
 
     let mut ctx = Context {
         rodeo,
         rels,
         files,
-        arith,
+        builtins,
     };
 
     // load_file("test.pl".to_string(), &mut ctx);

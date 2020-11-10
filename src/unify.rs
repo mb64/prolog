@@ -29,7 +29,7 @@ impl ClauseItem {
 
 impl<'a, 'v> State<'a, 'v> {
     pub fn solve(&mut self, v: VarId) -> SolverResult {
-        log::debug!("Solving {}", self.vars.dbg(v, &self.ctx.rodeo));
+        log::debug!("Solving {}", self.vars.dbg(v, &self.ctx));
         match self.vars.lookup(v) {
             Item::Unresolved => Err("can't solve ambiguous metavariable".into()),
             Item::Var(var) => panic!("Internal error: lookup {} returned var {}", v, var),
@@ -184,8 +184,8 @@ impl<'a, 'v> State<'a, 'v> {
     pub fn unify(&mut self, a: VarId, b: VarId) -> SolverResult {
         log::debug!(
             "Unifying {} and {}",
-            self.vars.dbg(a, &self.ctx.rodeo),
-            self.vars.dbg(b, &self.ctx.rodeo)
+            self.vars.dbg(a, &self.ctx),
+            self.vars.dbg(b, &self.ctx)
         );
         match (
             self.vars.lookup_with_varid(a),
@@ -261,8 +261,8 @@ impl<'a, 'v> State<'a, 'v> {
             ((va, _), (vb, _)) => {
                 log::trace!(
                     "Could not unify {} and {} -- backtrack",
-                    self.vars.dbg(va, &self.ctx.rodeo),
-                    self.vars.dbg(vb, &self.ctx.rodeo)
+                    self.vars.dbg(va, &self.ctx),
+                    self.vars.dbg(vb, &self.ctx)
                 );
                 Ok(Command::KeepGoing)
             }

@@ -8,7 +8,7 @@ use std::collections::{hash_map::Entry, HashMap};
 use std::fmt::{self, Write};
 use typed_arena::{Arena, SubArena};
 
-use crate::builtins::Arith;
+use crate::builtins::Builtins;
 use crate::parser::{self, Span};
 use crate::runner::Runner;
 
@@ -157,6 +157,7 @@ impl<'v> VarTable<'v> {
     }
 
     /// Note: Only do this on variables that currently refer to themselves
+    /// (checked by debug_assertion)
     pub fn update(&mut self, var: VarId, to: Item<'v>) {
         debug_assert_eq!(self.map.lookup(&var).copied(), Some(Item::Unresolved));
         self.map.insert(var, to);
@@ -206,41 +207,85 @@ impl<'v> VarTable<'v> {
 
 /// Functions to display variables
 impl VarTable<'_> {
-    pub fn show(&self, var: VarId, rodeo: &Rodeo) -> String {
+    pub fn show(&self, var: VarId, ctx: &Context) -> String {
         let mut s = String::new();
-        self.fmt_helper(&mut s, var, rodeo, false).unwrap();
+        self.fmt_helper(&mut s, var, ctx, false).unwrap();
         s
     }
 
-    pub fn dbg(&self, var: VarId, rodeo: &Rodeo) -> String {
+    pub fn dbg(&self, var: VarId, ctx: &Context) -> String {
         let mut s = String::new();
-        self.fmt_helper(&mut s, var, rodeo, true).unwrap();
+        self.fmt_helper(&mut s, var, ctx, true).unwrap();
         s
     }
 
-    fn fmt_helper(&self, f: &mut impl Write, var: VarId, rodeo: &Rodeo, dbg: bool) -> fmt::Result {
+    fn fmt_helper(&self, f: &mut impl Write, var: VarId, ctx: &Context, dbg: bool) -> fmt::Result {
         if dbg {
             write!(f, "{}", var)?;
         }
-        let item = self.map.lookup(&var).unwrap();
-        match *item {
+        match *self.map.lookup(&var).unwrap() {
             Item::Unresolved => write!(f, "{}", var),
-            Item::Var(v) => self.fmt_helper(f, v, rodeo, dbg),
+            Item::Var(v) => self.fmt_helper(f, v, ctx, dbg),
             Item::Number(x) => write!(f, "{}", x),
-            Item::Functor { name, ref args } => {
-                write!(f, "{}", rodeo.resolve(&name))?;
-                match **args {
+
+            // Lists
+            Item::Functor { name, args: &[] } if !dbg && name == ctx.builtins.nil => {
+                write!(f, "[]")
+            }
+            Item::Functor {
+                name,
+                args: &[head, tail],
+            } if !dbg && name == ctx.builtins.cons => {
+                write!(f, "[")?;
+                self.fmt_helper(f, head, ctx, dbg)?;
+                self.fmt_list(f, tail, ctx)
+            }
+            Item::Functor { name, .. } if !dbg && name == ctx.builtins.nil => {
+                panic!("nil should have no args")
+            }
+            Item::Functor { name, .. } if !dbg && name == ctx.builtins.cons => {
+                panic!("cons should have two args")
+            }
+
+            // Regular functors
+            Item::Functor { name, args } => {
+                write!(f, "{}", ctx.rodeo.resolve(&name))?;
+                match *args {
                     [] => Ok(()),
                     [first, ref rest @ ..] => {
                         write!(f, "(")?;
-                        self.fmt_helper(f, first, rodeo, dbg)?;
+                        self.fmt_helper(f, first, ctx, dbg)?;
                         for &arg in rest {
                             write!(f, ", ")?;
-                            self.fmt_helper(f, arg, rodeo, dbg)?;
+                            self.fmt_helper(f, arg, ctx, dbg)?;
                         }
                         write!(f, ")")
                     }
                 }
+            }
+        }
+    }
+
+    fn fmt_list(&self, f: &mut impl Write, var: VarId, ctx: &Context) -> fmt::Result {
+        let item = self.map.lookup(&var).unwrap();
+        match *item {
+            // Nil
+            Item::Functor { name, args: &[] } if name == ctx.builtins.nil => write!(f, "]"),
+            // Cons
+            Item::Functor {
+                name,
+                args: &[head, tail],
+            } if name == ctx.builtins.cons => {
+                write!(f, ", ")?;
+                self.fmt_helper(f, head, ctx, false)?;
+                self.fmt_list(f, tail, ctx)
+            }
+
+            // Not a list
+            _ => {
+                write!(f, " | ")?;
+                self.fmt_helper(f, var, ctx, false)?;
+                write!(f, "]")
             }
         }
     }
@@ -250,7 +295,7 @@ pub struct Context {
     pub rels: HashMap<RelId, Relation>,
     pub rodeo: Rodeo,
     pub files: SimpleFiles<String, String>,
-    pub arith: Arith,
+    pub builtins: Builtins,
 }
 
 impl Context {
@@ -371,10 +416,7 @@ impl Clause {
                     }
                 },
                 Expr::Number { span, value } => {
-                    // This will fail when it's called -- you can't "solve" a number
-                    // TODO: report error now instead of deferring it for later
-                    // (Both GNU Prolog and SWI Prolog report blatant type errors up front)
-                    reqs.push((span, ClauseItem::Number(value)));
+                    reqs.push((span, unify_arg(i, ClauseItem::Number(value))));
                 }
                 Expr::Functor { span, .. } => {
                     let e = translate_expr(arg, &mut next_local, &mut locals);
