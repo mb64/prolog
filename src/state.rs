@@ -8,6 +8,7 @@ use std::collections::{hash_map::Entry, HashMap};
 use std::fmt::{self, Write};
 use typed_arena::{Arena, SubArena};
 
+use crate::builtins::Arith;
 use crate::parser::{self, Span};
 use crate::runner::Runner;
 
@@ -72,7 +73,7 @@ pub enum Command {
 }
 
 /// `SolverResult` is returned by basically every function
-pub type SolverResult = Result<Command, Box<SolveError>>;
+pub type SolverResult<T = Command> = Result<T, Box<SolveError>>;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VarId(u64);
@@ -249,6 +250,7 @@ pub struct Context {
     pub rels: HashMap<RelId, Relation>,
     pub rodeo: Rodeo,
     pub files: SimpleFiles<String, String>,
+    pub arith: Arith,
 }
 
 impl Context {

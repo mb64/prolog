@@ -50,7 +50,7 @@ More datatypes:
 
 More builtins:
  - ~~Parse arithmetic operators~~ (but somehow keep negated literals as literals)
- - `is`
+ - ~~`is`~~
  - `call`
  - ~~Negation: `not`, `\=`, `\+`~~
  - `cpu_time`, to run benchmarks

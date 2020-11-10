@@ -83,8 +83,14 @@ fn main() {
     let mut rodeo = Rodeo::default();
     let rels = builtins::builtins(&mut rodeo);
     let files = codespan_reporting::files::SimpleFiles::new();
+    let arith = builtins::Arith::new(&mut rodeo);
 
-    let mut ctx = Context { rodeo, rels, files };
+    let mut ctx = Context {
+        rodeo,
+        rels,
+        files,
+        arith,
+    };
 
     // load_file("test.pl".to_string(), &mut ctx);
 
