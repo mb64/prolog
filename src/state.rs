@@ -201,10 +201,6 @@ impl<'v> VarTable<'v> {
     pub fn lookup(&mut self, var: VarId) -> Item<'v> {
         self.lookup_with_varid(var).1
     }
-
-    // pub fn lookup_imm(&self, var: VarId) -> &Item {
-    //     self.map.lookup(&var).unwrap()
-    // }
 }
 
 /// Functions to display variables
@@ -235,9 +231,11 @@ impl VarTable<'_> {
                 match **args {
                     [] => Ok(()),
                     [first, ref rest @ ..] => {
-                        write!(f, "({}", first)?;
-                        for arg in rest {
-                            write!(f, ", {}", arg)?;
+                        write!(f, "(")?;
+                        self.fmt_helper(f, first, rodeo, dbg)?;
+                        for &arg in rest {
+                            write!(f, ", ")?;
+                            self.fmt_helper(f, arg, rodeo, dbg)?;
                         }
                         write!(f, ")")
                     }
