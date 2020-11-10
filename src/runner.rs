@@ -30,6 +30,10 @@ impl<R> Printing<'_, R> {
 
 impl<R: Runner> Runner for Printing<'_, R> {
     fn solution(&mut self, ctx: &Context, vars: &mut VarTable<'_>) -> SolverResult {
+        if self.interesting_vars.len() == 0 {
+            // No use in continuing -- no other solutions to be found
+            return Ok(Command::Stop);
+        }
         println!("\nSolution:");
         for (&name, &var) in &self.interesting_vars {
             println!(
