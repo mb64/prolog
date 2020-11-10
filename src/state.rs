@@ -157,6 +157,7 @@ impl<'v> VarTable<'v> {
 
     /// Note: Only do this on variables that currently refer to themselves
     pub fn update(&mut self, var: VarId, to: Item<'v>) {
+        debug_assert_eq!(self.map.lookup(&var).copied(), Some(Item::Unresolved));
         self.map.insert(var, to);
     }
 
@@ -169,6 +170,7 @@ impl<'v> VarTable<'v> {
     }
 
     fn lookup_helper(&mut self, var: VarId) -> VarId {
+        log::trace!("Looking up {}", var);
         let i = self.map.lookup(&var).unwrap();
         if let Item::Var(v) = *i {
             let res = self.lookup_helper(v);
@@ -184,6 +186,7 @@ impl<'v> VarTable<'v> {
 
     /// Like `.lookup()`, but it also returns the main varid for that variable
     pub fn lookup_with_varid(&mut self, var: VarId) -> (VarId, Item<'v>) {
+        log::trace!("Looking up {}", var);
         let i = *self.map.lookup(&var).unwrap();
         if let Item::Var(v) = i {
             let w = self.lookup_helper(v);
@@ -404,7 +407,7 @@ impl VarTable<'_> {
         };
         self.next_var += clause.locals as u64;
         for v in start..self.next_var {
-            self.map.insert(VarId(v), Item::Var(VarId(v)));
+            self.map.insert(VarId(v), Item::Unresolved);
         }
         res
     }

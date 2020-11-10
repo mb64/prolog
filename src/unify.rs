@@ -208,7 +208,7 @@ impl<'a, 'v> State<'a, 'v> {
 
             // unify two identical numbers
             ((_, Item::Number(x)), (_, Item::Number(y))) if x == y => {
-                log::trace!("Numbers {} and {} are equal", x, y);
+                log::trace!("Numbers {} and {} are equal! Solved.", x, y);
                 self.runner.solution(self.ctx, self.vars)
             }
 
@@ -232,7 +232,7 @@ impl<'a, 'v> State<'a, 'v> {
                 // Unify all arguments
                 let len = args_a.len();
                 if len == 0 {
-                    log::trace!("Nothing left to unify! Solved.");
+                    log::trace!("Both are {}! Solved.", self.ctx.rodeo.resolve(&name_a));
                     self.runner.solution(self.ctx, self.vars)
                 } else if len == 1 {
                     log::trace!("Unify the arguments");
