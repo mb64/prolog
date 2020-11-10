@@ -16,8 +16,11 @@ impl ClauseItem {
         match *self {
             Var(l) => locals.get(l),
             Functor { name, ref args } => {
-                let new_args = args.iter().map(|ci| ci.reify(vars, locals));
-                vars.new_var_of_functor(name, new_args)
+                let new_args = args
+                    .iter()
+                    .map(|ci| ci.reify(vars, locals))
+                    .collect::<Vec<_>>();
+                vars.new_var_of_functor(name, new_args.into_iter())
             }
         }
     }

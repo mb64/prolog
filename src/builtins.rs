@@ -7,12 +7,7 @@ use crate::runner::*;
 use crate::state::*;
 use crate::unify::State;
 
-type Builtin = for<'temp, 'v> fn(
-    &'temp Context,
-    &'temp mut VarTable<'v>,
-    &'v [VarId],
-    &'temp mut dyn Runner,
-) -> SolverResult;
+type Builtin = fn(&Context, &mut VarTable<'_>, &[VarId], &mut dyn Runner) -> SolverResult;
 
 /// `fail` builtin -- immediately backtracks
 fn fail(

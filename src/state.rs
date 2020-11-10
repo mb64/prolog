@@ -105,10 +105,12 @@ pub enum Item<'a> {
 
 pub type VarTableBase = ScopedMapBase<VarId, Item<'static>>;
 
-pub struct VarTable<'a> {
-    map: ScopedMap<'a, VarId, Item<'a>>,
+// This is actually self-borrowing!
+// Really, it should be `Item<'self.arena>`, but `Item<'v>` is a good-enough approximation
+pub struct VarTable<'v> {
+    map: ScopedMap<'v, VarId, Item<'v>>,
     next_var: u64,
-    arena: SubArena<'a, VarId>,
+    arena: SubArena<'v, VarId>,
 }
 
 impl<'v> VarTable<'v> {
@@ -135,10 +137,14 @@ impl<'v> VarTable<'v> {
     }
 
     pub fn new_var_of_functor(&mut self, name: Spur, args: impl Iterator<Item = VarId>) -> VarId {
-        // TODO: figure this out
-        // let args = self.arena.alloc_extend(args);
-        let args = todo!();
-        self.new_var_of(Item::Functor { name, args })
+        // SAFETY: only safe bc we're careful everywhere else
+        // As noted, `VarTable` is self-borrowing, and `'v` is only an approximation of the
+        // lifetime `&'self.arena` of things borrowed from the arena
+        unsafe {
+            let args_wrong_lifetime = self.arena.alloc_extend(args);
+            let args = std::mem::transmute::<&[VarId], &'v [VarId]>(args_wrong_lifetime);
+            self.new_var_of(Item::Functor { name, args })
+        }
     }
 
     /// Note: Only do this on variables that currently refer to themselves
@@ -264,14 +270,7 @@ impl Context {
 
 #[derive(Clone)]
 pub enum Relation {
-    Builtin(
-        for<'temp, 'v> fn(
-            &'temp Context,
-            &'temp mut VarTable<'v>,
-            &'v [VarId],
-            &'temp mut dyn Runner,
-        ) -> SolverResult,
-    ),
+    Builtin(fn(&Context, &mut VarTable<'_>, &[VarId], &mut dyn Runner) -> SolverResult),
     User(Vec<Clause>),
 }
 
@@ -380,15 +379,15 @@ impl Clause {
 }
 
 /// A collection holding the local variables and parameters
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct LocalVars<'v> {
-    args: &'v [VarId],
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct LocalVars<'a> {
+    args: &'a [VarId],
     start: u64,
     count: u32,
 }
 
-impl<'v> VarTable<'v> {
-    pub fn allocate_locals(&mut self, clause: &Clause, args: &'v [VarId]) -> LocalVars<'v> {
+impl VarTable<'_> {
+    pub fn allocate_locals<'a>(&mut self, clause: &Clause, args: &'a [VarId]) -> LocalVars<'a> {
         let start = self.next_var;
         let res = LocalVars {
             args,
