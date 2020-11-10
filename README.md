@@ -44,17 +44,17 @@ Bye!
 ## TODO
 
 More datatypes:
- - Numbers (only integers? or also floats?)
+ - ~~Integers~~ Done!
  - Strings
- - Atoms? what is an atom
+ - Maybe floats, and maybe integers with constraints? (Would be difficult)
 
 More builtins:
- - Arithmetic
+ - Parse arithmetic operators (but keep negated literals as literals)
  - `is`
  - Negation: ~~`not`~~, `\=`, `\+`
  - `cpu_time`, to run benchmarks
  - load clauses from file
- - Cuts: `!` (will probably require some restructuring)
+ - Cuts: `!` (will probably require a new `Command` variant)
  - `->` and `*->` (soft cut)
  - standard library
  - IO
@@ -77,10 +77,10 @@ More usability:
 
 More fancy datastructures:
  - Probably not
- - Allocate functor arguments in an arena -- switch `Box<[VarId]>` to `&'arena [VarId]`
- - For `,` operator, figure out something better than CPS
+ - ~~Allocate functor arguments in an arena -- switch `Box<[VarId]>` to `&'arena [VarId]`~~ Done!
  - Rewrite `scoped_map` to give a different interface: single map, mutable
    operations to push and pop scope
+ - For `,` operator, figure out something better than CPS
  - Build it on a disjoint-stack style typed arena, with unsafe reset operations
  - Bytecode VM? Almost certainly not
 
