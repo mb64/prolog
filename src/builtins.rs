@@ -179,6 +179,7 @@ fn compute(ctx: &Context, vars: &mut VarTable<'_>, var: VarId) -> SolverResult<i
         Item::Unresolved => Err("Can't compute: contains uninstantiated variable(s)".into()),
         Item::Var(_) => panic!("lookup {} returned var", var),
         Item::Number(x) => Ok(x),
+        Item::String(_) => Err("Can't compute string".into()), // TODO: better error message
         Item::Functor { name, args } if name == ctx.builtins.add => {
             let mut sum = 0;
             for &arg in args {
@@ -239,6 +240,56 @@ fn is(
     State { ctx, vars, runner }.unify(var, var_of_value)
 }
 
+/// `<`/2 -- `x < y` succeeds if `x` is less than `y`
+fn less_than(
+    ctx: &Context,
+    vars: &mut VarTable<'_>,
+    args: &[VarId],
+    runner: &mut dyn Runner,
+) -> SolverResult {
+    let (lhs, rhs) = match *args {
+        [lhs, rhs] => (lhs, rhs),
+        _ => panic!("Wrong number of arguments"),
+    };
+
+    if let (Item::Number(x), Item::Number(y)) = (vars.lookup(lhs), vars.lookup(rhs)) {
+        if x < y {
+            // Success!
+            runner.solution(ctx, vars)
+        } else {
+            // Nope
+            Ok(Command::KeepGoing)
+        }
+    } else {
+        Err("</2: args are not numbers".into()) // TODO better error message
+    }
+}
+
+/// `>`/2 -- `x > y` succeeds if `x` is greater than `y`
+fn greater_than(
+    ctx: &Context,
+    vars: &mut VarTable<'_>,
+    args: &[VarId],
+    runner: &mut dyn Runner,
+) -> SolverResult {
+    let (lhs, rhs) = match *args {
+        [lhs, rhs] => (lhs, rhs),
+        _ => panic!("Wrong number of arguments"),
+    };
+
+    if let (Item::Number(x), Item::Number(y)) = (vars.lookup(lhs), vars.lookup(rhs)) {
+        if x > y {
+            // Success!
+            runner.solution(ctx, vars)
+        } else {
+            // Nope
+            Ok(Command::KeepGoing)
+        }
+    } else {
+        Err(">/2: args are not numbers".into()) // TODO better error message
+    }
+}
+
 /// `cpu_time/1` builtin: `cpu_time(X)` unifies `X` with the CPU time since the start of the
 /// program, in microseconds
 fn cpu_time(
@@ -276,6 +327,8 @@ pub fn builtins(rodeo: &mut Rodeo) -> HashMap<RelId, Relation> {
         ("write", 1, print as Builtin),
         ("println", 1, println as Builtin),
         ("nl", 0, nl as Builtin),
+        ("'<'", 2, less_than as Builtin),
+        ("'>'", 2, greater_than as Builtin),
         ("cpu_time", 1, cpu_time as Builtin),
         // TODO more
     ]

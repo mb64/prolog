@@ -23,6 +23,8 @@ extern {
         "=" => Tok::Equals,
         "\\=" => Tok::NotEquals,
         is => Tok::Is,
+        "<" => Tok::LessThan,
+        ">" => Tok::GreaterThan,
         "+" => Tok::Plus,
         "-" => Tok::Minus,
         "*" => Tok::Times,
@@ -32,6 +34,7 @@ extern {
         functor => Tok::Functor(<&'input str>),
         Variable => Tok::Variable(<&'input str>),
         number => Tok::Number(<i64>),
+        string => Tok::String(<&'input str>),
     }
 }
 
@@ -63,7 +66,7 @@ Exprs: Vec<Expr> = {
 }
 
 Expr: Expr = {
-    EqExpr,
+    CmpExpr,
     <l:@L> "\\+" <e:Expr> <r:@R> => Expr::Functor {
         span: Span::new(file_id, l, r),
         name: rodeo.get_or_intern("\\+"),
@@ -80,7 +83,7 @@ Operator<Left,Op,Right>: Expr = {
     },
 }
 
-EqExpr  = Operator<AddExpr, EqOp,  AddExpr>;
+CmpExpr = Operator<AddExpr, CmpOp, AddExpr>;
 AddExpr = Operator<AddExpr, AddOp, UnaryExpr>;
 UnaryExpr = {
     MulExpr,
@@ -101,6 +104,10 @@ Term: Expr = {
     <l:@L> <value:number> <r:@R> => {
         let span = Span::new(file_id, l, r);
         Expr::Number { span, value }
+    },
+    <l:@L> <s:string> <r:@R> => {
+        let span = Span::new(file_id, l, r);
+        Expr::String { span, value: s.to_owned() }
     },
     <l:@L> <v:Variable> <r:@R> => {
         let span = Span::new(file_id, l, r);
@@ -145,10 +152,12 @@ Functor: (Span, Spur, Vec<Expr>) = {
 
 // Operators
 
-EqOp: &'static str = {
+CmpOp: &'static str = {
     "=" => "'='",
     "\\=" => "'\\='",
     is => "is",
+    "<" => "'<'",
+    ">" => "'>'",
 }
 
 AddOp: &'static str = {

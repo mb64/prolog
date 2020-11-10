@@ -100,6 +100,10 @@ pub enum Item<'a> {
     // TODO: should it also have floats?
     // Also, look into adding constraints, and maybe a solver for finite domains
     Number(i64),
+    /// A string
+    // FIXME: legit string representation
+    // TODO: string-to-list, built-in operations on strings
+    String(&'a str),
     /// A functor is like f(Args...)
     Functor { name: Spur, args: &'a [VarId] },
 }
@@ -227,6 +231,7 @@ impl VarTable<'_> {
             Item::Unresolved => write!(f, "{}", var),
             Item::Var(v) => self.fmt_helper(f, v, ctx, dbg),
             Item::Number(x) => write!(f, "{}", x),
+            Item::String(s) => write!(f, "{:?}", s), // TODO: format with single quotes
 
             // Lists
             Item::Functor { name, args: &[] } if !dbg && name == ctx.builtins.nil => {
@@ -346,6 +351,7 @@ impl Local {
 pub enum ClauseItem {
     Var(Local),
     Number(i64),
+    String(Box<str>),
     Functor { name: Spur, args: Box<[ClauseItem]> },
 }
 
@@ -385,6 +391,7 @@ impl Clause {
                     ClauseItem::Var(*l)
                 }
                 Expr::Number { value, .. } => ClauseItem::Number(value),
+                Expr::String { ref value, .. } => ClauseItem::String(value.clone().into()),
                 Expr::Functor { name, ref args, .. } => ClauseItem::Functor {
                     name,
                     args: args
@@ -417,6 +424,9 @@ impl Clause {
                 },
                 Expr::Number { span, value } => {
                     reqs.push((span, unify_arg(i, ClauseItem::Number(value))));
+                }
+                Expr::String { span, ref value } => {
+                    reqs.push((span, unify_arg(i, ClauseItem::String(value.clone().into()))));
                 }
                 Expr::Functor { span, .. } => {
                     let e = translate_expr(arg, &mut next_local, &mut locals);

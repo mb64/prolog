@@ -55,6 +55,10 @@ pub enum Tok<'a> {
     Equals,
     #[token("\\=")]
     NotEquals,
+    #[token("<")]
+    LessThan,
+    #[token(">")]
+    GreaterThan,
     #[token("+")]
     Plus,
     #[token("-")]
@@ -86,6 +90,12 @@ pub enum Tok<'a> {
     // 0-5  | '-'(0, 5)  | '-'(0, 5)
     #[regex(r"[0-9][0-9_]*", |lex| lex.slice().parse())]
     Number(i64),
+
+    /// No escape sequences escaped
+    // TODO: change to Box<str>, and give a legit lexing function that can return an error
+    // then plum the errors thru the parser so they can be reported nicely
+    #[regex(r"'[^']*(\\'[^']*)*'", |lex| &lex.slice()[1..lex.slice().len()-1])]
+    String(&'a str),
 }
 
 struct Lexer<'input> {
@@ -139,6 +149,8 @@ pub enum Expr {
     Var { span: Span, name: Spur },
     /// Number
     Number { span: Span, value: i64 },
+    /// String
+    String { span: Span, value: String },
     /// Functor: `f(x, A)`
     Functor {
         span: Span,
@@ -153,6 +165,7 @@ impl Expr {
             Expr::Wildcard { span } => span,
             Expr::Var { span, .. } => span,
             Expr::Number { span, .. } => span,
+            Expr::String { span, .. } => span,
             Expr::Functor { span, .. } => span,
         }
     }
