@@ -88,6 +88,7 @@ impl<'a> Runner for All<'a> {
         match *self.items {
             [] => self.base.solution(ctx, vars),
             [(span, head)] => {
+                log::trace!("solving last clause");
                 let mut state = State {
                     ctx,
                     vars,
@@ -96,6 +97,7 @@ impl<'a> Runner for All<'a> {
                 state.solve(head).map_err(|e| e.add_trace(span))
             }
             [(span, head), ref tail @ ..] => {
+                log::trace!("solving next clause");
                 let mut state = State {
                     ctx,
                     vars,

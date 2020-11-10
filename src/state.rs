@@ -103,10 +103,18 @@ pub enum Item<'a> {
     Functor { name: Spur, args: &'a [VarId] },
 }
 
-pub type VarTableBase = ScopedMapBase<VarId, Item<'static>>;
+/// Construct a `VarTableBase` with `<VarTableBase as Default>::default()`
+/// Then, make a `VarTable` with `VarTable::new(&base)`
+#[derive(Default)]
+pub struct VarTableBase {
+    map: ScopedMapBase<VarId, Item<'static>>,
+    arena: Arena<VarId>,
+}
 
 // This is actually self-borrowing!
 // Really, it should be `Item<'self.arena>`, but `Item<'v>` is a good-enough approximation
+/// The VarTable stores all unification state
+/// Make one by going through `VarTableBase`
 pub struct VarTable<'v> {
     map: ScopedMap<'v, VarId, Item<'v>>,
     next_var: u64,
@@ -114,11 +122,11 @@ pub struct VarTable<'v> {
 }
 
 impl<'v> VarTable<'v> {
-    pub fn new(base: &'v VarTableBase, arena: &'v Arena<VarId>) -> Self {
+    pub fn new(base: &'v VarTableBase) -> Self {
         Self {
-            map: base.make_map(),
+            map: base.map.make_map(),
             next_var: 0,
-            arena: SubArena::new(arena),
+            arena: SubArena::new(&base.arena),
         }
     }
 

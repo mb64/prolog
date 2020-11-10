@@ -19,12 +19,10 @@ use unify::State;
 fn process_query<R: Runner>(
     ast: parser::Expr,
     ctx: &Context,
-    base_map: &VarTableBase,
+    vars_base: &VarTableBase,
     runner: &mut R,
 ) {
-    // TODO arenas: make an arena
-    // Better yet, refactor into a struct VarTableBase that handles it all
-    let mut vars = VarTable::new(&base_map, todo!());
+    let mut vars = VarTable::new(&vars_base);
 
     let (query, mut runner) = runner::from_question(&ast, runner, &mut vars);
     log::debug!("{}", runner.dbg(&ctx.rodeo));
@@ -46,7 +44,7 @@ fn process_query<R: Runner>(
 fn repl(ctx: &mut Context) {
     let mut rl = Editor::<()>::new();
 
-    let base_map = VarTableBase::new();
+    let base_map = VarTableBase::default();
 
     while let Ok(line) = rl.readline("> ") {
         rl.add_history_entry(&line);
