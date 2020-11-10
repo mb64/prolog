@@ -291,7 +291,7 @@ fn greater_than(
 }
 
 /// `cpu_time/1` builtin: `cpu_time(X)` unifies `X` with the CPU time since the start of the
-/// program, in microseconds
+/// program, in milliseconds
 fn cpu_time(
     ctx: &Context,
     vars: &mut VarTable<'_>,
@@ -305,7 +305,7 @@ fn cpu_time(
 
     let result = cpu_time::ThreadTime::now()
         .as_duration()
-        .as_micros()
+        .as_millis()
         .try_into()
         .unwrap();
     let var_of_result = vars.new_var_of(Item::Number(result));
@@ -315,13 +315,39 @@ fn cpu_time(
     State { ctx, vars, runner }.unify(arg, var_of_result)
 }
 
+/// `call/n` -- add some extra args to a functor, then call it as the goal
+fn call(
+    ctx: &Context,
+    vars: &mut VarTable<'_>,
+    args: &[VarId],
+    runner: &mut dyn Runner,
+) -> SolverResult {
+    if args.len() == 0 {
+        panic!("Wrong number of arguments");
+    }
+
+    let extra = &args[1..];
+    match vars.lookup(args[0]) {
+        Item::Functor {
+            name,
+            args: ref orig,
+        } => {
+            let new =
+                vars.new_var_of_functor(name, orig.iter().copied().chain(extra.iter().copied()));
+
+            State { ctx, vars, runner }.solve(new)
+        }
+        _ => Err("call: type error: not a functor".into()),
+    }
+}
+
 pub fn builtins(rodeo: &mut Rodeo) -> HashMap<RelId, Relation> {
     [
         ("'='", 2, unify as Builtin),
         ("'\\='", 2, not_unify as Builtin),
         ("fail", 0, fail as Builtin),
         ("not", 1, not as Builtin),
-        ("'\\+'", 1, not as Builtin),
+        ("\\+", 1, not as Builtin),
         ("is", 2, is as Builtin),
         ("print", 1, print as Builtin),
         ("write", 1, print as Builtin),
@@ -330,7 +356,11 @@ pub fn builtins(rodeo: &mut Rodeo) -> HashMap<RelId, Relation> {
         ("'<'", 2, less_than as Builtin),
         ("'>'", 2, greater_than as Builtin),
         ("cpu_time", 1, cpu_time as Builtin),
-        // TODO more
+        // call takes any number of arguments, but unfortunately there's no great way to express
+        // that rn
+        ("call", 2, call as Builtin),
+        ("call", 3, call as Builtin),
+        ("call", 4, call as Builtin),
     ]
     .iter()
     .map(|&(name, arity, action)| {

@@ -87,7 +87,7 @@ fn main() {
         builtins,
     };
 
-    // load_file("test.pl".to_string(), &mut ctx);
+    // load_file("sudoku.pl".to_string(), &mut ctx);
 
     repl(&mut ctx);
 }

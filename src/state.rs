@@ -231,7 +231,7 @@ impl VarTable<'_> {
             Item::Unresolved => write!(f, "{}", var),
             Item::Var(v) => self.fmt_helper(f, v, ctx, dbg),
             Item::Number(x) => write!(f, "{}", x),
-            Item::String(s) => write!(f, "{:?}", s), // TODO: format with single quotes
+            Item::String(s) => write!(f, "{}", s),
 
             // Lists
             Item::Functor { name, args: &[] } if !dbg && name == ctx.builtins.nil => {

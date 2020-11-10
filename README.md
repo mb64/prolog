@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A simple Prolog implementation in Rust.
+A simple Prolog implementation in Rust.  It can solve (mini) sudoku! See `sudoku.pl` for details.
 
 Example interaction:
 
@@ -51,7 +51,7 @@ More datatypes:
 More builtins:
  - ~~Parse arithmetic operators~~ (but somehow keep negated literals as literals)
  - ~~`is`~~
- - `call`
+ - ~~`call`~~
  - ~~Negation: `not`, `\=`, `\+`~~
  - ~~`cpu_time`, to run benchmarks~~
  - load clauses from file
