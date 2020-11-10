@@ -188,6 +188,11 @@ impl<'a, 'v> State<'a, 'v> {
             self.vars.lookup_with_varid(a),
             self.vars.lookup_with_varid(b),
         ) {
+            // lookup should never return vars
+            ((_, Item::Var(v)), _) => panic!("lookup {} returned var {}", a, v),
+            (_, (_, Item::Var(v))) => panic!("lookup {} returned var {}", b, v),
+
+            // if either is unresolved, unify
             ((va, Item::Unresolved), (vb, _)) => {
                 log::trace!("updating {} to {}", va, vb);
                 self.vars.update(va, Item::Var(vb));
@@ -198,6 +203,14 @@ impl<'a, 'v> State<'a, 'v> {
                 self.vars.update(vb, Item::Var(va));
                 self.runner.solution(self.ctx, self.vars)
             }
+
+            // unify two identical numbers
+            ((_, Item::Number(x)), (_, Item::Number(y))) if x == y => {
+                log::trace!("Numbers {} and {} are equal", x, y);
+                self.runner.solution(self.ctx, self.vars)
+            }
+
+            // unify two functors recursively
             (
                 (
                     _,
@@ -240,28 +253,13 @@ impl<'a, 'v> State<'a, 'v> {
                     .unify(first_a, first_b)
                 }
             }
-            (
-                (
-                    _,
-                    Item::Functor {
-                        name: name_a,
-                        args: args_a,
-                    },
-                ),
-                (
-                    _,
-                    Item::Functor {
-                        name: name_b,
-                        args: args_b,
-                    },
-                ),
-            ) => {
+
+            // Different things
+            ((va, _), (vb, _)) => {
                 log::trace!(
-                    "Could not unify {}/{} and {}/{} -- backtrack",
-                    self.ctx.rodeo.resolve(&name_a),
-                    args_a.len(),
-                    self.ctx.rodeo.resolve(&name_b),
-                    args_b.len()
+                    "Could not unify {} and {} -- backtrack",
+                    self.vars.dbg(va, &self.ctx.rodeo),
+                    self.vars.dbg(vb, &self.ctx.rodeo)
                 );
                 Ok(Command::KeepGoing)
             }
