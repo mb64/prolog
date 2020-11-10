@@ -300,6 +300,7 @@ impl Local {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ClauseItem {
     Var(Local),
+    Number(i64),
     Functor { name: Spur, args: Box<[ClauseItem]> },
 }
 
@@ -338,6 +339,7 @@ impl Clause {
                     });
                     ClauseItem::Var(*l)
                 }
+                Expr::Number { value, .. } => ClauseItem::Number(value),
                 Expr::Functor { name, ref args, .. } => ClauseItem::Functor {
                     name,
                     args: args
@@ -368,6 +370,12 @@ impl Clause {
                         entry.insert(Local::arg(i as i32));
                     }
                 },
+                Expr::Number { span, value } => {
+                    // This will fail when it's called -- you can't "solve" a number
+                    // TODO: report error now instead of deferring it for later
+                    // (Both GNU Prolog and SWI Prolog report blatant type errors up front)
+                    reqs.push((span, ClauseItem::Number(value)));
+                }
                 Expr::Functor { span, .. } => {
                     let e = translate_expr(arg, &mut next_local, &mut locals);
                     reqs.push((span, unify_arg(i, e)));

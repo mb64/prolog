@@ -53,6 +53,12 @@ pub enum Tok<'a> {
     Functor(&'a str),
     #[regex(r"[A-Z_][a-zA-Z0-9_]*")]
     Variable(&'a str),
+
+    // This is not great
+    // X - 5 should be the same as X-5
+    // TODO: figure out a smarter way to have signed literals
+    #[regex(r"-?[0-9][0-9_]*", |lex| lex.slice().parse())]
+    Number(i64),
 }
 
 struct Lexer<'input> {
@@ -104,6 +110,8 @@ pub enum Expr {
     Wildcard { span: Span },
     /// Actual variable: `A`
     Var { span: Span, name: Spur },
+    /// Number
+    Number { span: Span, value: i64 },
     /// Functor: `f(x, A)`
     Functor {
         span: Span,
@@ -117,6 +125,7 @@ impl Expr {
         match *self {
             Expr::Wildcard { span } => span,
             Expr::Var { span, .. } => span,
+            Expr::Number { span, .. } => span,
             Expr::Functor { span, .. } => span,
         }
     }

@@ -15,6 +15,7 @@ impl ClauseItem {
         use ClauseItem::*;
         match *self {
             Var(l) => locals.get(l),
+            Number(x) => vars.new_var_of(Item::Number(x)),
             Functor { name, ref args } => {
                 let new_args = args
                     .iter()

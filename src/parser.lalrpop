@@ -21,6 +21,7 @@ extern {
         "_" => Tok::Wildcard,
         functor => Tok::Functor(<&'input str>),
         Variable => Tok::Variable(<&'input str>),
+        number => Tok::Number(<i64>),
     }
 }
 
@@ -30,7 +31,7 @@ pub ReplItem: ReplItem = {
     <Question> => ReplItem::Question(<>),
 }
 
-Question: Expr = <Expr> "?";
+Question = <Expr> "?";
 
 Clause: Clause = {
     <l:@L> <f:Functor> "." <r:@R> => {
@@ -64,6 +65,10 @@ Term: Expr = {
     <l:@L> "_" <r:@R> => {
         let span = Span::new(file_id, l, r);
         Expr::Wildcard { span }
+    },
+    <l:@L> <value:number> <r:@R> => {
+        let span = Span::new(file_id, l, r);
+        Expr::Number { span, value }
     },
     <l:@L> <v:Variable> <r:@R> => {
         let span = Span::new(file_id, l, r);
