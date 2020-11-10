@@ -44,12 +44,13 @@ in_range(2).
 in_range(3).
 in_range(4).
 
+good_row(Row) :- maplist(in_range, Row), all_distinct(Row).
+
 mini_sudoku(Rows) :-
     length(Rows,4), maplist(same_length(Rows), Rows),
     transpose(Rows, Cols),
     Rows = [As,Bs,Cs,Ds],
-    maplist(maplist(in_range), Rows),
-    maplist(all_distinct, Rows),
+    maplist(good_row, Rows),
     maplist(all_distinct, Cols),
     blocks(As, Bs),
     blocks(Cs, Ds).
@@ -63,3 +64,8 @@ problem(1, [[_,2,_,_],
             [_,_,1,_],
             [_,1,_,_],
             [_,_,4,_]]).
+
+problem(2, [[1,_,2,_],
+            [_,2,_,_],
+            [_,_,3,_],
+            [_,_,_,_]]).
