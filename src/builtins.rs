@@ -151,7 +151,7 @@ fn not_unify(
 
 pub fn builtins(rodeo: &mut Rodeo) -> HashMap<RelId, Relation> {
     [
-        ("=", 2, unify as Builtin),
+        ("'='", 2, unify as Builtin),
         ("'\\='", 2, not_unify as Builtin),
         ("fail", 0, fail as Builtin),
         ("not", 1, not as Builtin),

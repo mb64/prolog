@@ -33,7 +33,7 @@ fn process_query<R: Runner>(
         runner: &mut runner,
     };
 
-    match state.solve(query) {
+    match state.solve(query).map_err(|e| e.add_trace(ast.span())) {
         Ok(Command::KeepGoing) => println!("\nNo."),
         Ok(Command::Stop) => println!("\nYes."),
         // TODO: configurable error display style

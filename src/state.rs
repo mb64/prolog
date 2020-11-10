@@ -351,7 +351,7 @@ impl Clause {
 
         let mut unify_arg = move |arg: usize, item: ClauseItem| -> ClauseItem {
             ClauseItem::Functor {
-                name: rodeo.get_or_intern("="),
+                name: rodeo.get_or_intern("'='"),
                 args: Box::new([ClauseItem::Var(Local::arg(arg as i32)), item]),
             }
         };
