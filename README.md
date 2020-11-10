@@ -45,7 +45,7 @@ Bye!
 
 More datatypes:
  - ~~Integers~~ Done!
- - Strings
+ - ~~Strings~~ Done-ish
  - Maybe floats, and maybe integers with constraints? (Would be difficult)
 
 More builtins:
@@ -53,7 +53,7 @@ More builtins:
  - ~~`is`~~
  - `call`
  - ~~Negation: `not`, `\=`, `\+`~~
- - `cpu_time`, to run benchmarks
+ - ~~`cpu_time`, to run benchmarks~~
  - load clauses from file
  - Cuts: `!` (will probably require a new `Command` variant)
  - `->` and `*->` (soft cut)
