@@ -93,6 +93,7 @@ UnaryExpr = {
 MulExpr = Operator<MulExpr, MulOp, Term>;
 
 Term: Expr = {
+    "(" <Expr> ")",
     <l:@L> "_" <r:@R> => {
         let span = Span::new(file_id, l, r);
         Expr::Wildcard { span }

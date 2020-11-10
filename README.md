@@ -49,10 +49,10 @@ More datatypes:
  - Maybe floats, and maybe integers with constraints? (Would be difficult)
 
 More builtins:
- - ~~Parse arithmetic operators~~ (but keep negated literals as literals)
+ - ~~Parse arithmetic operators~~ (but somehow keep negated literals as literals)
  - `is`
  - `call`
- - Negation: ~~`not`~~, `\=`, `\+`
+ - ~~Negation: `not`, `\=`, `\+`~~
  - `cpu_time`, to run benchmarks
  - load clauses from file
  - Cuts: `!` (will probably require a new `Command` variant)
