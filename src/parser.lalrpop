@@ -13,11 +13,21 @@ extern {
         "[" => Tok::LBracket,
         "]" => Tok::RBracket,
         "|" => Tok::Bar,
-        "=" => Tok::Equals,
+
         "." => Tok::Period,
         "," => Tok::Comma,
         "?" => Tok::Question,
         ":-" => Tok::Turnstile,
+
+        "\\+" => Tok::WeirdNot,
+        "=" => Tok::Equals,
+        "\\=" => Tok::NotEquals,
+        is => Tok::Is,
+        "+" => Tok::Plus,
+        "-" => Tok::Minus,
+        "*" => Tok::Times,
+        "/" => Tok::Divide,
+
         "_" => Tok::Wildcard,
         functor => Tok::Functor(<&'input str>),
         Variable => Tok::Variable(<&'input str>),
@@ -53,13 +63,34 @@ Exprs: Vec<Expr> = {
 }
 
 Expr: Expr = {
-    Term,
-    <l:@L> <lhs:Term> "=" <rhs:Term> <r:@R> => Expr::Functor {
+    EqExpr,
+    <l:@L> "\\+" <e:Expr> <r:@R> => Expr::Functor {
         span: Span::new(file_id, l, r),
-        name: rodeo.get_or_intern("="),
+        name: rodeo.get_or_intern("\\+"),
+        args: vec![e],
+    }
+}
+
+Operator<Left,Op,Right>: Expr = {
+    Right,
+    <l:@L> <lhs:Left> <op:Op> <rhs:Right> <r:@R> => Expr::Functor {
+        span: Span::new(file_id, l, r),
+        name: rodeo.get_or_intern(op),
         args: vec![lhs, rhs],
     },
 }
+
+EqExpr  = Operator<AddExpr, EqOp,  AddExpr>;
+AddExpr = Operator<AddExpr, AddOp, UnaryExpr>;
+UnaryExpr = {
+    MulExpr,
+    <l:@L> <op:AddOp> <e:UnaryExpr> <r:@R> => Expr::Functor {
+        span: Span::new(file_id, l, r),
+        name: rodeo.get_or_intern(op),
+        args: vec![e],
+    },
+}
+MulExpr = Operator<MulExpr, MulOp, Term>;
 
 Term: Expr = {
     <l:@L> "_" <r:@R> => {
@@ -108,4 +139,23 @@ Functor: (Span, Spur, Vec<Expr>) = {
         let span = Span::new(file_id, l, r);
         (span, rodeo.get_or_intern(f), vec![])
     },
+}
+
+
+// Operators
+
+EqOp: &'static str = {
+    "=" => "'='",
+    "\\=" => "'\\='",
+    is => "is",
+}
+
+AddOp: &'static str = {
+    "+" => "'+'",
+    "-" => "'-'",
+}
+
+MulOp: &'static str = {
+    "*" => "'*'",
+    "/" => "'/'",
 }

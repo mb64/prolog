@@ -49,8 +49,9 @@ More datatypes:
  - Maybe floats, and maybe integers with constraints? (Would be difficult)
 
 More builtins:
- - Parse arithmetic operators (but keep negated literals as literals)
+ - ~~Parse arithmetic operators~~ (but keep negated literals as literals)
  - `is`
+ - `call`
  - Negation: ~~`not`~~, `\=`, `\+`
  - `cpu_time`, to run benchmarks
  - load clauses from file
@@ -64,7 +65,8 @@ More usability:
  - Load file in REPL
  - Reset REPL
  - Command-line args to load files, run queries, optional REPL
- - Nicer lexer: allow for unicode, base-n literals, etc
+ - Nicer lexer: allow unicode, base-n literals, etc
+ - Allow multiple goals in a query
  - ~~Print atoms as `x`, not `x()`~~
  - ~~Allow `_Variables`, and~~ generate warnings for singleton variables
     * Question -- should it report the found values of `_Variables`? SWI Prolog

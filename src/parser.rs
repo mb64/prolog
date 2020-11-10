@@ -34,30 +34,54 @@ pub enum Tok<'a> {
     #[token("|")]
     Bar,
 
-    #[token("=")]
-    Equals,
     #[token(".")]
     Period,
     #[token(",")]
     Comma,
     #[token("?")]
     Question,
-
     #[token(":-")]
     Turnstile,
+
+    // These are vaguely in order of precedence
+    #[token("\\+")]
+    WeirdNot,
+    #[token("is")]
+    Is,
+    #[token("=")]
+    Equals,
+    #[token("\\=")]
+    NotEquals,
+    #[token("+")]
+    Plus,
+    #[token("-")]
+    Minus,
+    #[token("*")]
+    Times,
+    #[token("/")]
+    Divide,
 
     #[token("_")]
     Wildcard,
 
+    // TODO: figure out a nice way to parse literally everything without ambiguity
+    // Ideally, should also have =(a, b) and is(a, b) work
     #[regex(r"[a-z][a-zA-Z0-9_]*")]
+    #[regex(r"'[=*/+-]'")]
     Functor(&'a str),
     #[regex(r"[A-Z_][a-zA-Z0-9_]*")]
     Variable(&'a str),
 
-    // This is not great
-    // X - 5 should be the same as X-5
     // TODO: figure out a smarter way to have signed literals
-    #[regex(r"-?[0-9][0-9_]*", |lex| lex.slice().parse())]
+    // Might need whitespace sensitivity
+    //
+    // Item | SWI Prolog | GNU prolog
+    // -----+------------+-----------
+    // -(5) | '-'(5)     | '-'(5)
+    // - 5  | '-'(5)     | -5        (Different!)
+    //  -5  | -5         | -5
+    // 0-5  | '-'(0, 5)  | '-'(0, 5)
+    #[regex(r"[0-9][0-9_]*", |lex| lex.slice().parse())]
     Number(i64),
 }
 
@@ -129,16 +153,7 @@ impl Expr {
             Expr::Functor { span, .. } => span,
         }
     }
-}
 
-/// An input from the REPL
-/// Unlike a typical Prolog REPL, more like Makam's
-pub enum ReplItem {
-    Clauses(Vec<Clause>),
-    Question(Expr),
-}
-
-impl Expr {
     /// The empty list
     pub fn nil(span: Span, rodeo: &mut Rodeo) -> Self {
         Self::Functor {
@@ -156,6 +171,14 @@ impl Expr {
             args: vec![head, tail],
         }
     }
+}
+
+/// An input from the REPL
+/// Unlike a typical Prolog REPL, more like Makam's
+/// TODO: change it to be more prolog-y?
+pub enum ReplItem {
+    Clauses(Vec<Clause>),
+    Question(Expr),
 }
 
 pub fn parse(ctx: &mut Context, file_name: String, input: String) -> Option<Vec<Clause>> {
