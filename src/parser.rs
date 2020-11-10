@@ -21,6 +21,9 @@ lalrpop_mod!(parser);
 pub enum Tok<'a> {
     #[error]
     #[regex(r"[ \t\n\f]+", logos::skip)]
+    #[regex(r"/\*[^*]*(\*[^/][^*]*)*\*/", logos::skip)]
+    // The final \n is not included in the regex so that it can terminate at EOF too
+    #[regex(r"%[^\n]*", logos::skip)]
     Error,
 
     #[token("(")]
