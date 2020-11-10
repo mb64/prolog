@@ -2,6 +2,7 @@
 
 use lasso::{Rodeo, Spur};
 use std::collections::HashMap;
+use std::convert::TryInto;
 
 use crate::runner::*;
 use crate::state::*;
@@ -238,6 +239,31 @@ fn is(
     State { ctx, vars, runner }.unify(var, var_of_value)
 }
 
+/// `cpu_time/1` builtin: `cpu_time(X)` unifies `X` with the CPU time since the start of the
+/// program, in microseconds
+fn cpu_time(
+    ctx: &Context,
+    vars: &mut VarTable<'_>,
+    args: &[VarId],
+    runner: &mut dyn Runner,
+) -> SolverResult {
+    let arg = match *args {
+        [arg] => arg,
+        _ => panic!("Wrong number of arguments"),
+    };
+
+    let result = cpu_time::ThreadTime::now()
+        .as_duration()
+        .as_micros()
+        .try_into()
+        .unwrap();
+    let var_of_result = vars.new_var_of(Item::Number(result));
+
+    // Like `is`, this could be manually inlined
+    // But if `cpu_time` is your bottleneck, you're doing something very wrong
+    State { ctx, vars, runner }.unify(arg, var_of_result)
+}
+
 pub fn builtins(rodeo: &mut Rodeo) -> HashMap<RelId, Relation> {
     [
         ("'='", 2, unify as Builtin),
@@ -250,6 +276,7 @@ pub fn builtins(rodeo: &mut Rodeo) -> HashMap<RelId, Relation> {
         ("write", 1, print as Builtin),
         ("println", 1, println as Builtin),
         ("nl", 0, nl as Builtin),
+        ("cpu_time", 1, cpu_time as Builtin),
         // TODO more
     ]
     .iter()
