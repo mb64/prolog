@@ -137,27 +137,64 @@ impl<'v> VarTable<'v> {
     }
 }
 
+/// Intrusive linked list of variables that have been visited so far
+/// Used to avoid infinitely traversing cylic structures
+struct Seen<'a> {
+    var: VarId,
+    next: Option<&'a Seen<'a>>,
+}
+
+/// Whether the linked list contains that var
+fn has_seen(var: VarId, seen: Option<&Seen<'_>>) -> bool {
+    let mut next = seen;
+    while let Some(node) = next {
+        if node.var == var {
+            return true;
+        }
+        next = node.next;
+    }
+    false
+}
+
 /// Functions to display variables
 impl VarTable<'_> {
     pub fn show(&self, var: VarId, ctx: &Context) -> String {
         let mut s = String::new();
-        self.fmt_helper(&mut s, var, ctx, false).unwrap();
+        self.fmt_helper(&mut s, var, ctx, None, false).unwrap();
         s
     }
 
     pub fn dbg(&self, var: VarId, ctx: &Context) -> String {
         let mut s = String::new();
-        self.fmt_helper(&mut s, var, ctx, true).unwrap();
+        self.fmt_helper(&mut s, var, ctx, None, true).unwrap();
         s
     }
 
-    fn fmt_helper(&self, f: &mut impl Write, var: VarId, ctx: &Context, dbg: bool) -> fmt::Result {
+    fn fmt_helper(
+        &self,
+        f: &mut impl Write,
+        var: VarId,
+        ctx: &Context,
+        seen: Option<&Seen<'_>>,
+        dbg: bool,
+    ) -> fmt::Result {
+        if has_seen(var, seen) {
+            for (name, &v) in &ctx.var_names {
+                if var == v {
+                    return write!(f, "{}", ctx.rodeo.resolve(name));
+                }
+            }
+            return write!(f, "{}", var);
+        }
+        let new_seen_node = Seen { var, next: seen };
+        let seen = Some(&new_seen_node);
+
         if dbg {
             write!(f, "{}", var)?;
         }
         match *self.map.lookup(&var).unwrap() {
             Item::Unresolved => write!(f, "{}", var),
-            Item::Var(v) => self.fmt_helper(f, v, ctx, dbg),
+            Item::Var(v) => self.fmt_helper(f, v, ctx, seen, dbg),
             Item::Number(x) => write!(f, "{}", x),
             Item::String(s) => write!(f, "{}", s),
 
@@ -170,8 +207,8 @@ impl VarTable<'_> {
                 args: &[head, tail],
             } if !dbg && name == ctx.builtins.cons => {
                 write!(f, "[")?;
-                self.fmt_helper(f, head, ctx, dbg)?;
-                self.fmt_list(f, tail, ctx)
+                self.fmt_helper(f, head, ctx, seen, dbg)?;
+                self.fmt_list(f, tail, ctx, seen)
             }
             Item::Functor { name, .. } if !dbg && name == ctx.builtins.nil => {
                 panic!("nil should have no args")
@@ -187,10 +224,10 @@ impl VarTable<'_> {
                     [] => Ok(()),
                     [first, ref rest @ ..] => {
                         write!(f, "(")?;
-                        self.fmt_helper(f, first, ctx, dbg)?;
+                        self.fmt_helper(f, first, ctx, seen, dbg)?;
                         for &arg in rest {
                             write!(f, ", ")?;
-                            self.fmt_helper(f, arg, ctx, dbg)?;
+                            self.fmt_helper(f, arg, ctx, seen, dbg)?;
                         }
                         write!(f, ")")
                     }
@@ -199,10 +236,27 @@ impl VarTable<'_> {
         }
     }
 
-    fn fmt_list(&self, f: &mut impl Write, var: VarId, ctx: &Context) -> fmt::Result {
+    fn fmt_list(
+        &self,
+        f: &mut impl Write,
+        var: VarId,
+        ctx: &Context,
+        seen: Option<&Seen<'_>>,
+    ) -> fmt::Result {
+        if has_seen(var, seen) {
+            for (name, &v) in &ctx.var_names {
+                if var == v {
+                    return write!(f, " | {}]", ctx.rodeo.resolve(name));
+                }
+            }
+            return write!(f, " | {}]", var);
+        }
+        let new_seen_node = Seen { var, next: seen };
+        let seen = Some(&new_seen_node);
+
         let item = self.map.lookup(&var).unwrap();
         match *item {
-            Item::Var(v) => self.fmt_list(f, v, ctx),
+            Item::Var(v) => self.fmt_list(f, v, ctx, seen),
 
             // Nil
             Item::Functor { name, args: &[] } if name == ctx.builtins.nil => write!(f, "]"),
@@ -212,14 +266,14 @@ impl VarTable<'_> {
                 args: &[head, tail],
             } if name == ctx.builtins.cons => {
                 write!(f, ", ")?;
-                self.fmt_helper(f, head, ctx, false)?;
-                self.fmt_list(f, tail, ctx)
+                self.fmt_helper(f, head, ctx, seen, false)?;
+                self.fmt_list(f, tail, ctx, seen)
             }
 
             // Not a list
             _ => {
                 write!(f, " | ")?;
-                self.fmt_helper(f, var, ctx, false)?;
+                self.fmt_helper(f, var, ctx, seen, false)?;
                 write!(f, "]")
             }
         }
