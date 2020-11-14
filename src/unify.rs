@@ -1,7 +1,8 @@
 //! Unification
 
+use crate::context::*;
 use crate::runner::*;
-use crate::state::*;
+use crate::vars::*;
 
 pub struct State<'a, 'v> {
     pub ctx: &'a Context,

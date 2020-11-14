@@ -4,9 +4,10 @@ use lasso::{Rodeo, Spur};
 use std::collections::HashMap;
 use std::convert::TryInto;
 
+use crate::context::*;
 use crate::runner::*;
-use crate::state::*;
 use crate::unify::State;
+use crate::vars::*;
 
 /// Part of the `Context`, it stores the `Spur`s associated with a bunch of built-in functors
 pub struct Builtins {

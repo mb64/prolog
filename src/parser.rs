@@ -13,7 +13,7 @@ use std::convert::TryInto;
 use std::iter::Iterator;
 use std::ops::Range;
 
-use crate::state::Context;
+use crate::context::Context;
 
 lalrpop_mod!(parser);
 

@@ -1,12 +1,24 @@
 //! Runner: the logic to control the unification engine
 
+use crate::context::*;
+use crate::error::*;
 use crate::parser::{Expr, Span};
-use crate::state::*;
 use crate::unify::State;
+use crate::vars::*;
 use itertools::Itertools;
 use lasso::{Rodeo, Spur};
 use rustyline::Editor;
 use std::collections::HashMap;
+
+/// What to do next
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Command {
+    KeepGoing,
+    Stop,
+}
+
+/// `SolverResult` is returned by basically every function
+pub type SolverResult<T = Command> = Result<T, Box<SolveError>>;
 
 pub trait Runner {
     fn solution(&mut self, ctx: &Context, vars: &mut VarTable<'_>) -> SolverResult;
@@ -134,25 +146,6 @@ fn reify_ast<'a>(ast: &Expr, vars: &mut VarTable<'a>, my_vars: &mut HashMap<Spur
         }
     }
 }
-
-///// Returns `(var, runner)`.
-/////
-///// Next, run `unify::State {..}.solve(var)`
-//pub fn from_question<'e, 'v, R>(
-//    q: &Expr,
-//    r: &'e mut R,
-//    vars: &mut VarTable<'v>,
-//) -> (VarId, Printing<'e, R>) {
-//    let mut interesting = HashMap::new();
-//    let res = reify_ast(q, vars, &mut interesting);
-//    (
-//        res,
-//        Printing {
-//            interesting_vars: interesting,
-//            base: r,
-//        },
-//    )
-//}
 
 pub fn do_query<'e, 'v, R: Runner>(
     q: &[Expr],

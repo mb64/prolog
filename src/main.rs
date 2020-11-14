@@ -7,14 +7,17 @@ use lasso::Rodeo;
 use rustyline::Editor;
 
 pub mod builtins;
+pub mod context;
+pub mod error;
 pub mod parser;
 pub mod runner;
-pub mod state;
 pub mod unify;
+pub mod vars;
 
+use context::Context;
 use parser::ReplItem;
-use runner::Runner;
-use state::{Command, Context, VarTable, VarTableBase};
+use runner::{Command, Runner};
+use vars::{VarTable, VarTableBase};
 
 fn process_query<R: Runner>(
     ast: Vec<parser::Expr>,
