@@ -4,7 +4,7 @@ use codespan_reporting::files::SimpleFiles;
 use itertools::Itertools;
 use lasso::{Rodeo, Spur};
 use std::collections::{hash_map::Entry, HashMap};
-use unicode_segmentation::{Graphemes, UnicodeSegmentation};
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::builtins::Builtins;
 use crate::parser::{self, Span};
@@ -117,37 +117,50 @@ struct AstTranslator<'a> {
 }
 
 impl AstTranslator<'_> {
-    fn nil(rodeo: &mut Rodeo) -> ClauseItem {
+    fn nil(&mut self) -> ClauseItem {
         ClauseItem::Functor {
-            name: rodeo.get_or_intern("[]"),
+            name: self.rodeo.get_or_intern("[]"),
             args: vec![].into_boxed_slice(),
         }
     }
 
-    fn cons(head: ClauseItem, tail: ClauseItem, rodeo: &mut Rodeo) -> ClauseItem {
+    fn cons(&mut self, head: ClauseItem, tail: ClauseItem) -> ClauseItem {
         ClauseItem::Functor {
-            name: rodeo.get_or_intern("."),
+            name: self.rodeo.get_or_intern("."),
             args: vec![head, tail].into_boxed_slice(),
         }
     }
 
+    fn list(&mut self, items: &[parser::Expr], tail: Option<&parser::Expr>) -> ClauseItem {
+        let mut result = if let Some(tail) = tail {
+            self.translate_expr(tail)
+        } else {
+            self.nil()
+        };
+
+        for e in items.iter().rev() {
+            let i = self.translate_expr(e);
+            result = self.cons(i, result);
+        }
+
+        result
+    }
+
     fn string(&mut self, s: &str) -> ClauseItem {
         // Aaaa really wish there was TRMC
-        // TODO: re-write by iterating backwards using .rev() to avoid recursion
-        // If there was TRMC, this wouldn't be necessary
-        fn go(mut chars: Graphemes<'_>, rodeo: &mut Rodeo) -> ClauseItem {
-            if let Some(ch) = chars.next() {
-                let head = ClauseItem::Functor {
-                    name: rodeo.get_or_intern(ch),
-                    args: vec![].into_boxed_slice(),
-                };
-                let tail = go(chars, rodeo);
-                AstTranslator::cons(head, tail, rodeo)
-            } else {
-                AstTranslator::nil(rodeo)
-            }
+        // If there was TRMC, iterating backwards wouldn't be necessary
+
+        let mut result = self.nil();
+
+        for ch in s.graphemes(/* extended: */ true).rev() {
+            let item = ClauseItem::Functor {
+                name: self.rodeo.get_or_intern(ch),
+                args: vec![].into_boxed_slice(),
+            };
+            result = self.cons(item, result);
         }
-        go(s.graphemes(true), self.rodeo)
+
+        result
     }
 
     fn translate_expr(&mut self, ast: &parser::Expr) -> ClauseItem {
@@ -178,6 +191,11 @@ impl AstTranslator<'_> {
                     .into_boxed_slice(),
             },
             Expr::String { ref value, .. } => self.string(&value),
+            Expr::List {
+                ref items,
+                ref tail,
+                ..
+            } => self.list(&items[..], tail.as_ref().map(|x| &**x)),
         }
     }
 
@@ -214,6 +232,15 @@ impl AstTranslator<'_> {
             }
             Expr::String { span, ref value } => {
                 let e = self.string(value);
+                let req = self.unify_arg(i, e);
+                self.reqs.push((span, req));
+            }
+            Expr::List {
+                span,
+                ref items,
+                ref tail,
+            } => {
+                let e = self.list(items, tail.as_ref().map(|x| &**x));
                 let req = self.unify_arg(i, e);
                 self.reqs.push((span, req));
             }

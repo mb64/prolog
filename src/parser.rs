@@ -7,7 +7,7 @@ use codespan_reporting::files::SimpleFiles;
 use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
 use itertools::Itertools;
 use lalrpop_util::{lalrpop_mod, ParseError};
-use lasso::{Rodeo, Spur};
+use lasso::Spur;
 use logos::Logos;
 use std::convert::TryInto;
 use std::iter::Iterator;
@@ -160,6 +160,12 @@ pub enum Expr {
         name: Spur,
         args: Vec<Expr>,
     },
+    /// A list `[items... | tail]`
+    List {
+        span: Span,
+        items: Vec<Expr>,
+        tail: Option<Box<Expr>>,
+    },
 }
 
 impl Expr {
@@ -171,24 +177,7 @@ impl Expr {
             Expr::String { span, .. } => span,
             Expr::Paren { span, .. } => span,
             Expr::Functor { span, .. } => span,
-        }
-    }
-
-    /// The empty list
-    pub fn nil(span: Span, rodeo: &mut Rodeo) -> Self {
-        Self::Functor {
-            span,
-            name: rodeo.get_or_intern("[]"),
-            args: vec![],
-        }
-    }
-
-    /// List `cons`
-    pub fn cons(head: Self, tail: Self, span: Span, rodeo: &mut Rodeo) -> Self {
-        Self::Functor {
-            name: rodeo.get_or_intern("."),
-            span,
-            args: vec![head, tail],
+            Expr::List { span, .. } => span,
         }
     }
 }

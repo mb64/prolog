@@ -124,20 +124,14 @@ Term: Expr = {
 }
 
 List: Expr = {
-    <l:@L> "[" <es:Exprs> "]" <r:@R> => {
+    <l:@L> "[" <items:Exprs> "]" <r:@R> => {
         let span = Span::new(file_id, l, r);
-        es.into_iter().rev().fold(
-            Expr::nil(span, rodeo),
-            |tail, head| Expr::cons(head, tail, span, rodeo),
-        )
+        Expr::List { span, items, tail: None }
     },
 
-    <l:@L> "[" <es:Exprs> "|" <t:Expr> "]" <r:@R> => {
+    <l:@L> "[" <items:Exprs> "|" <tail:Expr> "]" <r:@R> => {
         let span = Span::new(file_id, l, r);
-        es.into_iter().rev().fold(
-            t,
-            |tail, head| Expr::cons(head, tail, span, rodeo),
-        )
+        Expr::List { span, items, tail: Some(Box::new(tail)) }
     },
 }
 
