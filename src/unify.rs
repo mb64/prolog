@@ -166,7 +166,14 @@ impl<'a, 'v> State<'a, 'v> {
             ((_, Item::Var(v)), _) => panic!("lookup {} returned var {}", a, v),
             (_, (_, Item::Var(v))) => panic!("lookup {} returned var {}", b, v),
 
+            // Avoid creating cyclic things
+            ((va, _), (vb, _)) if va == vb => {
+                log::trace!("already unified: {} and {}", va, vb);
+                self.runner.solution(self.ctx, self.vars)
+            }
+
             // if either is unresolved, unify
+            // TODO: here would be the right place to add occurs checks in the future
             ((va, Item::Unresolved), (vb, _)) => {
                 log::trace!("updating {} to {}", va, vb);
                 self.vars.update(va, Item::Var(vb));
