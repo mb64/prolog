@@ -222,9 +222,6 @@ impl VarTable<'_> {
             Item::Number(x) => write!(f, "{}", x),
 
             // Lists
-            Item::Functor { name, args: &[] } if !dbg && name == ctx.builtins.nil => {
-                write!(f, "[]")
-            }
             Item::Functor {
                 name,
                 args: &[head, tail],
@@ -232,12 +229,6 @@ impl VarTable<'_> {
                 write!(f, "[")?;
                 self.fmt_helper(f, head, ctx, seen, dbg)?;
                 self.fmt_list(f, tail, ctx, seen)
-            }
-            Item::Functor { name, .. } if !dbg && name == ctx.builtins.nil => {
-                panic!("nil should have no args")
-            }
-            Item::Functor { name, .. } if !dbg && name == ctx.builtins.cons => {
-                panic!("cons should have two args")
             }
 
             // Regular functors
