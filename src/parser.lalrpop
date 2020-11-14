@@ -34,6 +34,7 @@ extern {
         functor => Tok::Functor(<&'input str>),
         Variable => Tok::Variable(<&'input str>),
         number => Tok::Number(<i64>),
+        string => Tok::String(<&'input str>),
     }
 }
 
@@ -95,7 +96,10 @@ UnaryExpr = {
 MulExpr = Operator<MulExpr, MulOp, Term>;
 
 Term: Expr = {
-    "(" <Expr> ")",
+    <l:@L> "(" <inner:Expr> ")" <r:@R> => {
+        let span = Span::new(file_id, l, r);
+        Expr::Paren { span, inner: Box::new(inner) }
+    },
     <l:@L> "_" <r:@R> => {
         let span = Span::new(file_id, l, r);
         Expr::Wildcard { span }
@@ -111,6 +115,10 @@ Term: Expr = {
     Functor => {
         let (span, name, args) = <>;
         Expr::Functor { span, name, args }
+    },
+    <l:@L> <s:string> <r:@R> => {
+        let span = Span::new(file_id, l, r);
+        Expr::String { span, value: s.to_owned() }
     },
     List,
 }
@@ -148,19 +156,19 @@ Functor: (Span, Spur, Vec<Expr>) = {
 // Operators
 
 CmpOp: &'static str = {
-    "=" => "'='",
-    "\\=" => "'\\='",
+    "=" => "=",
+    "\\=" => "\\=",
     is => "is",
-    "<" => "'<'",
-    ">" => "'>'",
+    "<" => "<",
+    ">" => ">",
 }
 
 AddOp: &'static str = {
-    "+" => "'+'",
-    "-" => "'-'",
+    "+" => "+",
+    "-" => "-",
 }
 
 MulOp: &'static str = {
-    "*" => "'*'",
-    "/" => "'/'",
+    "*" => "*",
+    "/" => "/",
 }

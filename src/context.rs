@@ -4,6 +4,7 @@ use codespan_reporting::files::SimpleFiles;
 use itertools::Itertools;
 use lasso::{Rodeo, Spur};
 use std::collections::{hash_map::Entry, HashMap};
+use unicode_segmentation::{Graphemes, UnicodeSegmentation};
 
 use crate::builtins::Builtins;
 use crate::parser::{self, Span};
@@ -97,81 +98,139 @@ pub struct Clause {
 
 impl Clause {
     pub fn from_ast(ast: &parser::Clause, rodeo: &mut Rodeo) -> Clause {
-        use parser::Expr;
+        AstTranslator {
+            next_local: 0,
+            locals: HashMap::new(),
+            reqs: vec![],
+            rodeo,
+        }
+        .translate_clause(ast)
+    }
+}
 
-        let mut next_local = 0;
-        let mut locals = HashMap::<Spur, Local>::new();
-        let mut reqs = vec![];
+/// A helper struct just for translating AST clauses into ClauseItems
+struct AstTranslator<'a> {
+    next_local: i32,
+    locals: HashMap<Spur, Local>,
+    reqs: Vec<(Span, ClauseItem)>,
+    rodeo: &'a mut Rodeo,
+}
 
-        fn translate_expr(
-            ast: &Expr,
-            next_local: &mut i32,
-            locals: &mut HashMap<Spur, Local>,
-        ) -> ClauseItem {
-            match *ast {
-                Expr::Wildcard { .. } => {
-                    let l = Local(*next_local);
-                    *next_local += 1;
-                    ClauseItem::Var(l)
-                }
-                Expr::Var { name, .. } => {
-                    let l = locals.entry(name).or_insert_with(|| {
-                        *next_local += 1;
-                        Local(*next_local - 1)
-                    });
-                    ClauseItem::Var(*l)
-                }
-                Expr::Number { value, .. } => ClauseItem::Number(value),
-                Expr::Functor { name, ref args, .. } => ClauseItem::Functor {
-                    name,
-                    args: args
-                        .iter()
-                        .map(|arg| translate_expr(arg, next_local, locals))
-                        .collect::<Vec<_>>()
-                        .into_boxed_slice(),
-                },
+impl AstTranslator<'_> {
+    fn nil(rodeo: &mut Rodeo) -> ClauseItem {
+        ClauseItem::Functor {
+            name: rodeo.get_or_intern("[]"),
+            args: vec![].into_boxed_slice(),
+        }
+    }
+    fn cons(head: ClauseItem, tail: ClauseItem, rodeo: &mut Rodeo) -> ClauseItem {
+        ClauseItem::Functor {
+            name: rodeo.get_or_intern("."),
+            args: vec![head, tail].into_boxed_slice(),
+        }
+    }
+
+    fn string(&mut self, s: &str) -> ClauseItem {
+        // Aaaa really wish there was TRMC
+        fn go(mut chars: Graphemes<'_>, rodeo: &mut Rodeo) -> ClauseItem {
+            if let Some(ch) = chars.next() {
+                let head = ClauseItem::Functor {
+                    name: rodeo.get_or_intern(ch),
+                    args: vec![].into_boxed_slice(),
+                };
+                let tail = go(chars, rodeo);
+                AstTranslator::cons(head, tail, rodeo)
+            } else {
+                AstTranslator::nil(rodeo)
             }
         }
+        go(s.graphemes(true), self.rodeo)
+    }
 
-        let mut unify_arg = move |arg: usize, item: ClauseItem| -> ClauseItem {
-            ClauseItem::Functor {
-                name: rodeo.get_or_intern("'='"),
-                args: Box::new([ClauseItem::Var(Local::arg(arg as i32)), item]),
+    // A few helper functions
+    fn translate_expr(&mut self, ast: &parser::Expr) -> ClauseItem {
+        use parser::Expr;
+        match *ast {
+            Expr::Paren { ref inner, .. } => self.translate_expr(inner),
+            Expr::Wildcard { .. } => {
+                let l = Local(self.next_local);
+                self.next_local += 1;
+                ClauseItem::Var(l)
             }
-        };
+            Expr::Var { name, .. } => {
+                let next_local = &mut self.next_local;
+                let l = self.locals.entry(name).or_insert_with(|| {
+                    let l = Local(*next_local);
+                    *next_local += 1;
+                    l
+                });
+                ClauseItem::Var(*l)
+            }
+            Expr::Number { value, .. } => ClauseItem::Number(value),
+            Expr::Functor { name, ref args, .. } => ClauseItem::Functor {
+                name,
+                args: args
+                    .iter()
+                    .map(|arg| self.translate_expr(arg))
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
+            },
+            Expr::String { ref value, .. } => self.string(&value),
+        }
+    }
 
+    fn unify_arg(&mut self, arg: i32, item: ClauseItem) -> ClauseItem {
+        ClauseItem::Functor {
+            name: self.rodeo.get_or_intern("="),
+            args: Box::new([ClauseItem::Var(Local::arg(arg)), item]),
+        }
+    }
+
+    fn handle_arg(&mut self, i: i32, arg: &parser::Expr) {
+        use parser::Expr;
+        match *arg {
+            Expr::Paren { ref inner, .. } => self.handle_arg(i, inner),
+            Expr::Wildcard { .. } => (),
+            Expr::Var { span, name } => match self.locals.entry(name) {
+                Entry::Occupied(entry) => {
+                    let l = *entry.get();
+                    let req = self.unify_arg(i, ClauseItem::Var(l));
+                    self.reqs.push((span, req));
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(Local::arg(i as i32));
+                }
+            },
+            Expr::Number { span, value } => {
+                let req = self.unify_arg(i, ClauseItem::Number(value));
+                self.reqs.push((span, req));
+            }
+            Expr::Functor { span, .. } => {
+                let e = self.translate_expr(arg);
+                let req = self.unify_arg(i, e);
+                self.reqs.push((span, req));
+            }
+            Expr::String { span, ref value } => {
+                let e = self.string(value);
+                let req = self.unify_arg(i, e);
+                self.reqs.push((span, req));
+            }
+        }
+    }
+
+    fn translate_clause(mut self, ast: &parser::Clause) -> Clause {
         for (i, arg) in ast.args.iter().enumerate() {
-            match *arg {
-                Expr::Wildcard { .. } => (),
-                Expr::Var { span, name } => match locals.entry(name) {
-                    Entry::Occupied(entry) => {
-                        let l = *entry.get();
-                        reqs.push((span, unify_arg(i, ClauseItem::Var(l))));
-                    }
-                    Entry::Vacant(entry) => {
-                        entry.insert(Local::arg(i as i32));
-                    }
-                },
-                Expr::Number { span, value } => {
-                    reqs.push((span, unify_arg(i, ClauseItem::Number(value))));
-                }
-                Expr::Functor { span, .. } => {
-                    let e = translate_expr(arg, &mut next_local, &mut locals);
-                    reqs.push((span, unify_arg(i, e)));
-                }
-            }
+            self.handle_arg(i as i32, arg);
         }
 
         for cond in &ast.conditions {
-            reqs.push((
-                cond.span(),
-                translate_expr(cond, &mut next_local, &mut locals),
-            ));
+            let req = self.translate_expr(cond);
+            self.reqs.push((cond.span(), req));
         }
 
         Clause {
-            locals: next_local as u32,
-            reqs,
+            locals: self.next_local as u32,
+            reqs: self.reqs,
         }
     }
 }

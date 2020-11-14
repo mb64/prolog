@@ -112,6 +112,7 @@ impl<'a> Runner for All<'a> {
 
 fn reify_ast<'a>(ast: &Expr, vars: &mut VarTable<'a>, my_vars: &mut HashMap<Spur, VarId>) -> VarId {
     match *ast {
+        Expr::Paren { ref inner, .. } => reify_ast(inner, vars, my_vars),
         Expr::Wildcard { .. } => vars.new_var(),
         Expr::Var { name, .. } => *my_vars.entry(name).or_insert_with(|| vars.new_var()),
         Expr::Number { value, .. } => vars.new_var_of(Item::Number(value)),
@@ -121,6 +122,9 @@ fn reify_ast<'a>(ast: &Expr, vars: &mut VarTable<'a>, my_vars: &mut HashMap<Spur
                 .map(|a| reify_ast(a, vars, my_vars))
                 .collect::<Vec<_>>();
             vars.new_var_of_functor(name, args.into_iter())
+        }
+        Expr::String { ref value, .. } => {
+            todo!()
         }
     }
 }

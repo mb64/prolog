@@ -343,8 +343,8 @@ fn call(
 
 pub fn builtins(rodeo: &mut Rodeo) -> HashMap<RelId, Relation> {
     [
-        ("'='", 2, unify as Builtin),
-        ("'\\='", 2, not_unify as Builtin),
+        ("=", 2, unify as Builtin),
+        ("\\=", 2, not_unify as Builtin),
         ("fail", 0, fail as Builtin),
         ("not", 1, not as Builtin),
         ("\\+", 1, not as Builtin),
@@ -353,8 +353,8 @@ pub fn builtins(rodeo: &mut Rodeo) -> HashMap<RelId, Relation> {
         ("write", 1, print as Builtin),
         ("println", 1, println as Builtin),
         ("nl", 0, nl as Builtin),
-        ("'<'", 2, less_than as Builtin),
-        ("'>'", 2, greater_than as Builtin),
+        ("<", 2, less_than as Builtin),
+        (">", 2, greater_than as Builtin),
         ("cpu_time", 1, cpu_time as Builtin),
         // call takes any number of arguments, but unfortunately there's no great way to express
         // that rn

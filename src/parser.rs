@@ -91,6 +91,10 @@ pub enum Tok<'a> {
     // 0-5  | '-'(0, 5)  | '-'(0, 5)
     #[regex(r"[0-9][0-9_]*", |lex| lex.slice().parse())]
     Number(i64),
+
+    // TODO: expand escape sequences sometime?
+    #[regex(r#""[^"\n]*(\\'[^"\n]*)*""#, |lex| &lex.slice()[1..lex.slice().len()-1])]
+    String(&'a str),
 }
 
 struct Lexer<'input> {
@@ -144,6 +148,12 @@ pub enum Expr {
     Var { span: Span, name: Spur },
     /// Number
     Number { span: Span, value: i64 },
+    /// A String is a list of characters
+    String { span: Span, value: String },
+    /// A parenthesized expression
+    /// For now, it's only useful to keep these separate so the parser knows the
+    /// difference between -5 and -(5)
+    Paren { span: Span, inner: Box<Expr> },
     /// Functor: `f(x, A)`
     Functor {
         span: Span,
@@ -158,6 +168,8 @@ impl Expr {
             Expr::Wildcard { span } => span,
             Expr::Var { span, .. } => span,
             Expr::Number { span, .. } => span,
+            Expr::String { span, .. } => span,
+            Expr::Paren { span, .. } => span,
             Expr::Functor { span, .. } => span,
         }
     }
