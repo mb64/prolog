@@ -136,7 +136,7 @@ pub struct Clause {
     pub span: Span,
     pub functor: Spur,
     pub args: Vec<Expr>,
-    pub conditions: Vec<Expr>,
+    pub subgoals: Vec<Expr>,
 }
 
 /// Either a functor or a variable

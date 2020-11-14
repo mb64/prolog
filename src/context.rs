@@ -108,7 +108,7 @@ impl Clause {
     }
 }
 
-/// A helper struct just for translating AST clauses into ClauseItems
+/// A helper struct for translating AST clauses into ClauseItems
 struct AstTranslator<'a> {
     next_local: i32,
     locals: HashMap<Spur, Local>,
@@ -123,6 +123,7 @@ impl AstTranslator<'_> {
             args: vec![].into_boxed_slice(),
         }
     }
+
     fn cons(head: ClauseItem, tail: ClauseItem, rodeo: &mut Rodeo) -> ClauseItem {
         ClauseItem::Functor {
             name: rodeo.get_or_intern("."),
@@ -132,6 +133,8 @@ impl AstTranslator<'_> {
 
     fn string(&mut self, s: &str) -> ClauseItem {
         // Aaaa really wish there was TRMC
+        // TODO: re-write by iterating backwards using .rev() to avoid recursion
+        // If there was TRMC, this wouldn't be necessary
         fn go(mut chars: Graphemes<'_>, rodeo: &mut Rodeo) -> ClauseItem {
             if let Some(ch) = chars.next() {
                 let head = ClauseItem::Functor {
@@ -147,7 +150,6 @@ impl AstTranslator<'_> {
         go(s.graphemes(true), self.rodeo)
     }
 
-    // A few helper functions
     fn translate_expr(&mut self, ast: &parser::Expr) -> ClauseItem {
         use parser::Expr;
         match *ast {
@@ -218,19 +220,50 @@ impl AstTranslator<'_> {
         }
     }
 
+    fn translate_subgoals(&mut self, subgoals: &[parser::Expr]) {
+        for goal in subgoals {
+            let req = self.translate_expr(goal);
+            self.reqs.push((goal.span(), req));
+        }
+    }
+
     fn translate_clause(mut self, ast: &parser::Clause) -> Clause {
         for (i, arg) in ast.args.iter().enumerate() {
             self.handle_arg(i as i32, arg);
         }
 
-        for cond in &ast.conditions {
-            let req = self.translate_expr(cond);
-            self.reqs.push((cond.span(), req));
-        }
+        self.translate_subgoals(&ast.subgoals[..]);
 
         Clause {
             locals: self.next_local as u32,
             reqs: self.reqs,
         }
     }
+}
+
+/// Returns a tuple `(locals, subgoals)`, allocates initial variables, and stores their names in
+/// `ctx.var_names`.
+///
+/// Next, run unify::State{..}.solve_clause_items(locals, )
+pub fn translate_query(
+    query: &[parser::Expr],
+    ctx: &mut Context,
+    vars: &mut VarTable,
+) -> (LocalVars<'static>, Vec<(Span, ClauseItem)>) {
+    let mut translator = AstTranslator {
+        next_local: 0,
+        locals: HashMap::new(),
+        reqs: vec![],
+        rodeo: &mut ctx.rodeo,
+    };
+    translator.translate_subgoals(query);
+
+    let locals = vars.allocate_locals(translator.next_local as u32, &[]);
+
+    ctx.var_names = HashMap::new();
+    for (name, l) in translator.locals {
+        ctx.var_names.insert(name, locals.get(l));
+    }
+
+    (locals, translator.reqs)
 }

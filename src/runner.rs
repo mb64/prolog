@@ -5,9 +5,7 @@ use crate::error::*;
 use crate::parser::{Expr, Span};
 use crate::unify::State;
 use crate::vars::*;
-use lasso::Spur;
 use rustyline::Editor;
-use std::collections::HashMap;
 
 /// What to do next
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -110,45 +108,22 @@ impl<'a> Runner for All<'a> {
     }
 }
 
-fn reify_ast<'a>(ast: &Expr, vars: &mut VarTable<'a>, my_vars: &mut HashMap<Spur, VarId>) -> VarId {
-    match *ast {
-        Expr::Paren { ref inner, .. } => reify_ast(inner, vars, my_vars),
-        Expr::Wildcard { .. } => vars.new_var(),
-        Expr::Var { name, .. } => *my_vars.entry(name).or_insert_with(|| vars.new_var()),
-        Expr::Number { value, .. } => vars.new_var_of(Item::Number(value)),
-        Expr::Functor { name, ref args, .. } => {
-            let args = args
-                .iter()
-                .map(|a| reify_ast(a, vars, my_vars))
-                .collect::<Vec<_>>();
-            vars.new_var_of_functor(name, args.into_iter())
-        }
-        Expr::String { ref value, .. } => {
-            todo!()
-        }
-    }
-}
-
 pub fn do_query<'e, 'v, R: Runner>(
     q: &[Expr],
     r: &'e mut R,
     ctx: &mut Context,
     vars: &mut VarTable<'v>,
 ) -> SolverResult {
-    let mut var_names = HashMap::new();
-    let items = q
-        .iter()
-        .map(|e| (e.span(), reify_ast(e, vars, &mut var_names)))
-        .collect::<Vec<_>>();
+    let (locals, goals) = translate_query(q, ctx, vars);
 
-    ctx.var_names = var_names;
-
-    let mut base = Printing { base: r };
     log::debug!("{}", ctx.dbg_var_names());
 
-    All {
-        items: &items[..],
-        base: &mut base,
+    let mut runner = Printing { base: r };
+
+    State {
+        ctx,
+        vars,
+        runner: &mut runner,
     }
-    .solution(ctx, vars)
+    .solve_clause_items(locals, &goals)
 }

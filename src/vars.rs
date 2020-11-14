@@ -284,14 +284,10 @@ pub struct LocalVars<'a> {
 }
 
 impl VarTable<'_> {
-    pub fn allocate_locals<'a>(&mut self, clause: &Clause, args: &'a [VarId]) -> LocalVars<'a> {
+    pub fn allocate_locals<'a>(&mut self, count: u32, args: &'a [VarId]) -> LocalVars<'a> {
         let start = self.next_var;
-        let res = LocalVars {
-            args,
-            start,
-            count: clause.locals,
-        };
-        self.next_var += clause.locals as u64;
+        let res = LocalVars { args, start, count };
+        self.next_var += count as u64;
         for v in start..self.next_var {
             self.map.insert(VarId(v), Item::Unresolved);
         }

@@ -1,6 +1,7 @@
 //! Unification
 
 use crate::context::*;
+use crate::parser::Span;
 use crate::runner::*;
 use crate::vars::*;
 
@@ -56,8 +57,6 @@ impl<'a, 'v> State<'a, 'v> {
                     [clause] => self.solve_clause(clause, args),
                     [first @ .., last] => {
                         for clause in first {
-                            // Would be good not to clone
-                            let args = args.clone();
                             let mut tmp_state = State {
                                 ctx: self.ctx,
                                 vars: &mut self.vars.backtrackable(),
@@ -77,12 +76,19 @@ impl<'a, 'v> State<'a, 'v> {
 }
 
 impl<'a, 'v> State<'a, 'v> {
-    fn solve_clause(&mut self, clause: &Clause, args: &'v [VarId]) -> SolverResult {
-        let locals = self.vars.allocate_locals(clause, args);
+    fn solve_clause(&mut self, clause: &Clause, args: &[VarId]) -> SolverResult {
+        let locals = self.vars.allocate_locals(clause.locals, args);
+        self.solve_clause_items(locals, &clause.reqs)
+    }
+
+    pub fn solve_clause_items(
+        &mut self,
+        locals: LocalVars,
+        reqs: &[(Span, ClauseItem)],
+    ) -> SolverResult {
         // loop thru and solve each clause item
         // (in an ultra-cursed CPS no tail calls way)
-        let mut items = clause
-            .reqs
+        let mut items = reqs
             .iter()
             .map(|(span, req)| (*span, req.reify(self.vars, &locals)));
         if let Some((span, first)) = items.next() {
@@ -137,7 +143,7 @@ impl<'a> Runner for UnifyAll<'a> {
                 },
             }
             .unify(x, y),
-            _ => panic!("Internal error: mismatches lengths"),
+            _ => panic!("Internal error: mismatched lengths"),
         }
     }
 }

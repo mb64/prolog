@@ -50,12 +50,12 @@ Clause: Clause = {
     <l:@L> <f:Functor> "." <r:@R> => {
         let span = Span::new(file_id, l, r);
         let (_, functor, args) = f;
-        Clause { span, functor, args, conditions: vec![] }
+        Clause { span, functor, args, subgoals: vec![] }
     },
-    <l:@L> <f:Functor> ":-" <conditions:Exprs> "." <r:@R> => {
+    <l:@L> <f:Functor> ":-" <subgoals:Exprs> "." <r:@R> => {
         let span = Span::new(file_id, l, r);
         let (_, functor, args) = f;
-        Clause { span, functor, args, conditions }
+        Clause { span, functor, args, subgoals }
     },
 }
 
