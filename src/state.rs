@@ -196,6 +196,8 @@ impl<'v> VarTable<'v> {
         let i = *self.map.lookup(&var).unwrap();
         if let Item::Var(v) = i {
             let w = self.lookup_helper(v);
+            // Don't need to check if var != w -- it's guaranteed to be true
+            debug_assert_ne!(var, w);
             self.map.insert(var, Item::Var(w));
             (w, *self.map.lookup(&w).unwrap())
         } else {

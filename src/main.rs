@@ -27,7 +27,7 @@ fn process_query<R: Runner>(
     let result = runner::do_query(&ast[..], runner, ctx, &mut vars);
 
     // TODO: configurable error display style
-    let style = DisplayStyle::Rich;
+    let style = DisplayStyle::Short;
 
     match result {
         Ok(Command::KeepGoing) => println!("\nNo."),
@@ -61,15 +61,17 @@ fn repl(ctx: &mut Context) {
     println!("\nBye!");
 }
 
-fn load_file(filename: String, ctx: &mut Context) {
-    let contents = std::fs::read_to_string(&filename).unwrap();
-    if let Some(ast) = parser::parse(ctx, filename, contents) {
+fn load_file(filename: &str, ctx: &mut Context) {
+    let contents = std::fs::read_to_string(filename).unwrap();
+    if let Some(ast) = parser::parse(ctx, filename.to_owned(), contents) {
         for ast_clause in ast {
             if let Err(e) = ctx.add_ast_clause(ast_clause) {
                 println!("Error: {}", e);
             }
         }
     }
+
+    println!("Successfully loaded {}", filename);
 }
 
 fn main() {
@@ -87,7 +89,7 @@ fn main() {
         builtins,
     };
 
-    // load_file("sudoku.pl".to_string(), &mut ctx);
+    // load_file("sudoku.pl", &mut ctx);
 
     repl(&mut ctx);
 }
