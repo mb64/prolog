@@ -74,7 +74,8 @@ pub enum Tok<'a> {
     // TODO: figure out a nice way to parse literally everything without ambiguity
     // Ideally, should also have =(a, b) and is(a, b) work
     #[regex(r"[a-z][a-zA-Z0-9_]*")]
-    #[regex(r"'[=*/+-]'")]
+    // TODO: expand escape sequences sometime?
+    #[regex(r"'[^'\n]*(\\'[^'\n]*)*'", |lex| &lex.slice()[1..lex.slice().len()-1])]
     Functor(&'a str),
     #[regex(r"[A-Z_][a-zA-Z0-9_]*")]
     Variable(&'a str),
@@ -90,12 +91,6 @@ pub enum Tok<'a> {
     // 0-5  | '-'(0, 5)  | '-'(0, 5)
     #[regex(r"[0-9][0-9_]*", |lex| lex.slice().parse())]
     Number(i64),
-
-    /// No escape sequences escaped
-    // TODO: change to Box<str>, and give a legit lexing function that can return an error
-    // then plum the errors thru the parser so they can be reported nicely
-    #[regex(r"'[^']*(\\'[^']*)*'", |lex| &lex.slice()[1..lex.slice().len()-1])]
-    String(&'a str),
 }
 
 struct Lexer<'input> {
@@ -149,8 +144,6 @@ pub enum Expr {
     Var { span: Span, name: Spur },
     /// Number
     Number { span: Span, value: i64 },
-    /// String
-    String { span: Span, value: String },
     /// Functor: `f(x, A)`
     Functor {
         span: Span,
@@ -165,7 +158,6 @@ impl Expr {
             Expr::Wildcard { span } => span,
             Expr::Var { span, .. } => span,
             Expr::Number { span, .. } => span,
-            Expr::String { span, .. } => span,
             Expr::Functor { span, .. } => span,
         }
     }
@@ -174,7 +166,7 @@ impl Expr {
     pub fn nil(span: Span, rodeo: &mut Rodeo) -> Self {
         Self::Functor {
             span,
-            name: rodeo.get_or_intern("$nil"),
+            name: rodeo.get_or_intern("[]"),
             args: vec![],
         }
     }
@@ -182,7 +174,7 @@ impl Expr {
     /// List `cons`
     pub fn cons(head: Self, tail: Self, span: Span, rodeo: &mut Rodeo) -> Self {
         Self::Functor {
-            name: rodeo.get_or_intern("$cons"),
+            name: rodeo.get_or_intern("."),
             span,
             args: vec![head, tail],
         }

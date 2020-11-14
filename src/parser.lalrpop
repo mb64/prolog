@@ -34,7 +34,6 @@ extern {
         functor => Tok::Functor(<&'input str>),
         Variable => Tok::Variable(<&'input str>),
         number => Tok::Number(<i64>),
-        string => Tok::String(<&'input str>),
     }
 }
 
@@ -104,10 +103,6 @@ Term: Expr = {
     <l:@L> <value:number> <r:@R> => {
         let span = Span::new(file_id, l, r);
         Expr::Number { span, value }
-    },
-    <l:@L> <s:string> <r:@R> => {
-        let span = Span::new(file_id, l, r);
-        Expr::String { span, value: s.to_owned() }
     },
     <l:@L> <v:Variable> <r:@R> => {
         let span = Span::new(file_id, l, r);

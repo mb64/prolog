@@ -43,9 +43,15 @@ Bye!
 
 ## TODO
 
+More legit Prolog-ness:
+ - Exceptions
+ - Actual toplevel
+ - Operators
+ - ISO builtins
+
 More datatypes:
  - ~~Integers~~ Done!
- - ~~Strings~~ Done-ish
+ - Strings
  - Maybe floats, and maybe integers with constraints? (Would be difficult)
 
 More builtins:

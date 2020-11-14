@@ -26,10 +26,6 @@ pub enum Item<'a> {
     // TODO: should it also have floats?
     // Also, look into adding constraints, and maybe a solver for finite domains
     Number(i64),
-    /// A string
-    // FIXME: legit string representation
-    // TODO: string-to-list, built-in operations on strings
-    String(&'a str),
     /// A functor is like f(Args...)
     Functor { name: Spur, args: &'a [VarId] },
 }
@@ -196,7 +192,6 @@ impl VarTable<'_> {
             Item::Unresolved => write!(f, "{}", var),
             Item::Var(v) => self.fmt_helper(f, v, ctx, seen, dbg),
             Item::Number(x) => write!(f, "{}", x),
-            Item::String(s) => write!(f, "{}", s),
 
             // Lists
             Item::Functor { name, args: &[] } if !dbg && name == ctx.builtins.nil => {

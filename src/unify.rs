@@ -16,14 +16,6 @@ impl ClauseItem {
         match *self {
             Var(l) => locals.get(l),
             Number(x) => vars.new_var_of(Item::Number(x)),
-            String(ref s) => {
-                // SAFETY: we leak the string
-                // FIXME: find a legit way to store strings
-                let copy = s.clone();
-                let copy_ref = unsafe { std::mem::transmute::<&str, &'static str>(&copy) };
-                std::mem::forget(copy);
-                vars.new_var_of(Item::String(copy_ref))
-            }
             Functor { name, ref args } => {
                 let new_args = args
                     .iter()
@@ -42,7 +34,6 @@ impl<'a, 'v> State<'a, 'v> {
             Item::Unresolved => Err("can't solve ambiguous metavariable".into()),
             Item::Var(var) => panic!("Internal error: lookup {} returned var {}", v, var),
             Item::Number(n) => Err(format!("Type error: {} is not a functor", n).into()),
-            Item::String(s) => Err(format!("Type error: {:?} is not a functor", s).into()),
             Item::Functor { name, ref args } => match self.ctx.rels.get(&RelId {
                 name,
                 arity: args.len() as u32,
@@ -189,12 +180,6 @@ impl<'a, 'v> State<'a, 'v> {
             // unify two identical numbers
             ((_, Item::Number(x)), (_, Item::Number(y))) if x == y => {
                 log::trace!("Numbers {} and {} are equal! Solved.", x, y);
-                self.runner.solution(self.ctx, self.vars)
-            }
-
-            // unify two identical strings
-            ((_, Item::String(x)), (_, Item::String(y))) if x == y => {
-                log::trace!("Strings {:?} are equal! Solved.", x);
                 self.runner.solution(self.ctx, self.vars)
             }
 

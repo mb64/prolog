@@ -22,12 +22,12 @@ pub struct Builtins {
 impl Builtins {
     pub fn new(rodeo: &mut Rodeo) -> Self {
         Self {
-            cons: rodeo.get_or_intern_static("$cons"),
-            nil: rodeo.get_or_intern_static("$nil"),
-            add: rodeo.get_or_intern_static("'+'"),
-            sub: rodeo.get_or_intern_static("'-'"),
-            mul: rodeo.get_or_intern_static("'*'"),
-            div: rodeo.get_or_intern_static("'/'"),
+            cons: rodeo.get_or_intern_static("."),
+            nil: rodeo.get_or_intern_static("[]"),
+            add: rodeo.get_or_intern_static("+"),
+            sub: rodeo.get_or_intern_static("-"),
+            mul: rodeo.get_or_intern_static("*"),
+            div: rodeo.get_or_intern_static("/"),
         }
     }
 }
@@ -180,7 +180,6 @@ fn compute(ctx: &Context, vars: &mut VarTable<'_>, var: VarId) -> SolverResult<i
         Item::Unresolved => Err("Can't compute: contains uninstantiated variable(s)".into()),
         Item::Var(_) => panic!("lookup {} returned var", var),
         Item::Number(x) => Ok(x),
-        Item::String(_) => Err("Can't compute string".into()), // TODO: better error message
         Item::Functor { name, args } if name == ctx.builtins.add => {
             let mut sum = 0;
             for &arg in args {

@@ -115,14 +115,6 @@ fn reify_ast<'a>(ast: &Expr, vars: &mut VarTable<'a>, my_vars: &mut HashMap<Spur
         Expr::Wildcard { .. } => vars.new_var(),
         Expr::Var { name, .. } => *my_vars.entry(name).or_insert_with(|| vars.new_var()),
         Expr::Number { value, .. } => vars.new_var_of(Item::Number(value)),
-        Expr::String { ref value, .. } => {
-            // SAFETY: we leak the string
-            // FIXME: actually store strings somewhere
-            let s = value.clone();
-            let s_ref = unsafe { std::mem::transmute::<&str, &'static str>(&s) };
-            std::mem::forget(s);
-            vars.new_var_of(Item::String(s_ref))
-        }
         Expr::Functor { name, ref args, .. } => {
             let args = args
                 .iter()
