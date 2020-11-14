@@ -21,7 +21,7 @@ use vars::{VarTable, VarTableBase};
 
 fn process_query<R: Runner>(
     ast: Vec<parser::Expr>,
-    ctx: &Context,
+    ctx: &mut Context,
     vars_base: &VarTableBase,
     runner: &mut R,
 ) {
@@ -55,7 +55,7 @@ fn repl(ctx: &mut Context) {
                 }
             }
             Some(ReplItem::Question(ast)) => {
-                process_query(ast, &ctx, &base_map, &mut rl);
+                process_query(ast, ctx, &base_map, &mut rl);
             }
             None => (),
         }
@@ -84,12 +84,14 @@ fn main() {
     let rels = builtins::builtins(&mut rodeo);
     let files = codespan_reporting::files::SimpleFiles::new();
     let builtins = builtins::Builtins::new(&mut rodeo);
+    let var_names = Default::default();
 
     let mut ctx = Context {
         rodeo,
         rels,
         files,
         builtins,
+        var_names,
     };
 
     // load_file("sudoku.pl", &mut ctx);

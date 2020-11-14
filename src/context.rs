@@ -1,6 +1,7 @@
 //! The main datastructures
 
 use codespan_reporting::files::SimpleFiles;
+use itertools::Itertools;
 use lasso::{Rodeo, Spur};
 use std::collections::{hash_map::Entry, HashMap};
 
@@ -20,6 +21,7 @@ pub struct Context {
     pub rodeo: Rodeo,
     pub files: SimpleFiles<String, String>,
     pub builtins: Builtins,
+    pub var_names: HashMap<Spur, VarId>,
 }
 
 impl Context {
@@ -46,6 +48,16 @@ impl Context {
         };
         let clause = Clause::from_ast(&ast_clause, &mut self.rodeo);
         self.add_clause(rel_id, clause)
+    }
+
+    pub fn dbg_var_names(&self) -> String {
+        format!(
+            "Top-level unification vars:\n   {}",
+            self.var_names
+                .iter()
+                .map(|(n, v)| format!("{} = {}", self.rodeo.resolve(n), v))
+                .format("\n   ")
+        )
     }
 }
 

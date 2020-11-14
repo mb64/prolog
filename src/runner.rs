@@ -5,8 +5,7 @@ use crate::error::*;
 use crate::parser::{Expr, Span};
 use crate::unify::State;
 use crate::vars::*;
-use itertools::Itertools;
-use lasso::{Rodeo, Spur};
+use lasso::Spur;
 use rustyline::Editor;
 use std::collections::HashMap;
 
@@ -24,31 +23,18 @@ pub trait Runner {
     fn solution(&mut self, ctx: &Context, vars: &mut VarTable<'_>) -> SolverResult;
 }
 
-pub struct Printing<'r, R> {
-    interesting_vars: HashMap<Spur, VarId>,
-    base: &'r mut R,
+pub struct Printing<'r> {
+    base: &'r mut dyn Runner,
 }
 
-impl<R> Printing<'_, R> {
-    pub fn dbg(&self, rodeo: &Rodeo) -> String {
-        format!(
-            "Top-level unification vars:\n   {}",
-            self.interesting_vars
-                .iter()
-                .map(|(n, v)| format!("{} = {}", rodeo.resolve(n), v))
-                .format("\n   ")
-        )
-    }
-}
-
-impl<R: Runner> Runner for Printing<'_, R> {
+impl Runner for Printing<'_> {
     fn solution(&mut self, ctx: &Context, vars: &mut VarTable<'_>) -> SolverResult {
-        if self.interesting_vars.len() == 0 {
+        if ctx.var_names.len() == 0 {
             // No use in continuing -- no other solutions to be found
             return Ok(Command::Stop);
         }
         println!("\nSolution:");
-        for (&name, &var) in &self.interesting_vars {
+        for (&name, &var) in &ctx.var_names {
             println!("   {} = {}", ctx.rodeo.resolve(&name), vars.show(var, ctx));
         }
         self.base.solution(ctx, vars)
@@ -150,20 +136,19 @@ fn reify_ast<'a>(ast: &Expr, vars: &mut VarTable<'a>, my_vars: &mut HashMap<Spur
 pub fn do_query<'e, 'v, R: Runner>(
     q: &[Expr],
     r: &'e mut R,
-    ctx: &Context,
+    ctx: &mut Context,
     vars: &mut VarTable<'v>,
 ) -> SolverResult {
-    let mut interesting = HashMap::new();
+    let mut var_names = HashMap::new();
     let items = q
         .iter()
-        .map(|e| (e.span(), reify_ast(e, vars, &mut interesting)))
+        .map(|e| (e.span(), reify_ast(e, vars, &mut var_names)))
         .collect::<Vec<_>>();
 
-    let mut base = Printing {
-        interesting_vars: interesting,
-        base: r,
-    };
-    log::debug!("{}", base.dbg(&ctx.rodeo));
+    ctx.var_names = var_names;
+
+    let mut base = Printing { base: r };
+    log::debug!("{}", ctx.dbg_var_names());
 
     All {
         items: &items[..],
