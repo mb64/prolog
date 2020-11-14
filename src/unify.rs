@@ -150,6 +150,35 @@ impl<'a> Runner for UnifyAll<'a> {
 
 // Finally
 impl<'a, 'v> State<'a, 'v> {
+    // Invariant: a.len() == b.len()
+    fn unify_args(&mut self, a: &[VarId], b: &[VarId]) -> SolverResult {
+        debug_assert_eq!(a.len(), b.len());
+        let len = a.len();
+        if len == 0 {
+            log::trace!("Identical atoms! Solved.");
+            self.runner.solution(self.ctx, self.vars)
+        } else if len == 1 {
+            log::trace!("Unify the arguments");
+            self.unify(a[0], b[0])
+        } else {
+            log::trace!("Unify the arguments");
+            let first_a = a[0];
+            let first_b = b[0];
+            let lhs = a[1..].to_owned();
+            let rhs = b[1..].to_owned();
+            State {
+                ctx: self.ctx,
+                vars: self.vars,
+                runner: &mut UnifyAll {
+                    lhs: &lhs,
+                    rhs: &rhs,
+                    base: self.runner,
+                },
+            }
+            .unify(first_a, first_b)
+        }
+    }
+
     pub fn unify(&mut self, a: VarId, b: VarId) -> SolverResult {
         log::debug!(
             "Unifying {} and {}",
@@ -206,31 +235,8 @@ impl<'a, 'v> State<'a, 'v> {
                     },
                 ),
             ) if name_a == name_b && args_a.len() == args_b.len() => {
-                // Unify all arguments
-                let len = args_a.len();
-                if len == 0 {
-                    log::trace!("Both are {}! Solved.", self.ctx.rodeo.resolve(&name_a));
-                    self.runner.solution(self.ctx, self.vars)
-                } else if len == 1 {
-                    log::trace!("Unify the arguments");
-                    self.unify(args_a[0], args_b[0])
-                } else {
-                    log::trace!("Unify the arguments");
-                    let first_a = args_a[0];
-                    let first_b = args_b[0];
-                    let lhs = args_a[1..].to_owned();
-                    let rhs = args_b[1..].to_owned();
-                    State {
-                        ctx: self.ctx,
-                        vars: self.vars,
-                        runner: &mut UnifyAll {
-                            lhs: &lhs,
-                            rhs: &rhs,
-                            base: self.runner,
-                        },
-                    }
-                    .unify(first_a, first_b)
-                }
+                log::trace!("Same functor, unifying arguments");
+                self.unify_args(args_a, args_b)
             }
 
             // Different things
@@ -240,6 +246,54 @@ impl<'a, 'v> State<'a, 'v> {
                     self.vars.dbg(va, &self.ctx),
                     self.vars.dbg(vb, &self.ctx)
                 );
+                Ok(Command::KeepGoing)
+            }
+        }
+    }
+
+    /// Don't give `Item::Unresolved` or `Item::Var` as the second argument
+    #[inline]
+    pub fn unify_with_known(&mut self, a: VarId, b: Item<'v>) -> SolverResult {
+        log::debug!("Unifying {} and {:?}", self.vars.dbg(a, &self.ctx), b);
+
+        match (self.vars.lookup_with_varid(a), b) {
+            (_, Item::Unresolved) => panic!(),
+            (_, Item::Var(_)) => panic!(),
+
+            // Resolve unresolved things
+            ((va, Item::Unresolved), _) => {
+                log::trace!("Resolved {} to {:?}", va, b);
+                self.vars.update(va, b);
+                self.runner.solution(self.ctx, self.vars)
+            }
+
+            // Unify identical numbers
+            ((_, Item::Number(x)), Item::Number(y)) if x == y => {
+                log::trace!("Both are {} -- done!", x);
+                self.runner.solution(self.ctx, self.vars)
+            }
+
+            // Unify identical functors
+            (
+                (
+                    _,
+                    Item::Functor {
+                        name: name_a,
+                        args: args_a,
+                    },
+                ),
+                Item::Functor {
+                    name: name_b,
+                    args: args_b,
+                },
+            ) if name_a == name_b && args_a.len() == args_b.len() => {
+                log::trace!("Same functor, unifying arguments");
+                self.unify_args(args_a, args_b)
+            }
+
+            // Fail to unify different things
+            _ => {
+                log::trace!("Can't unify");
                 Ok(Command::KeepGoing)
             }
         }

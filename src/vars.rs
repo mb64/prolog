@@ -71,22 +71,50 @@ impl<'v> VarTable<'v> {
         new_id
     }
 
+    unsafe fn alloc_functor_args(
+        arena: &SubArena<'v, VarId>,
+        args: impl Iterator<Item = VarId>,
+    ) -> &'v [VarId] {
+        let args_wrong_lifetime = arena.alloc_extend(args);
+        std::mem::transmute::<&[VarId], &'v [VarId]>(args_wrong_lifetime)
+    }
+
     pub fn new_var_of_functor(&mut self, name: Spur, args: impl Iterator<Item = VarId>) -> VarId {
         // SAFETY: only safe bc we're careful everywhere else
         // As noted, `VarTable` is self-borrowing, and `'v` is only an approximation of the
         // lifetime `&'self.arena` of things borrowed from the arena
         unsafe {
-            let args_wrong_lifetime = self.arena.alloc_extend(args);
-            let args = std::mem::transmute::<&[VarId], &'v [VarId]>(args_wrong_lifetime);
+            let args = Self::alloc_functor_args(&self.arena, args);
             self.new_var_of(Item::Functor { name, args })
         }
     }
 
-    /// Note: Only do this on variables that currently refer to themselves
+    /// Note: Only do this on variables that are currently unresolved
     /// (checked by debug_assertion)
     pub fn update(&mut self, var: VarId, to: Item<'v>) {
-        debug_assert_eq!(self.map.lookup(&var).copied(), Some(Item::Unresolved));
+        debug_assert_eq!(self.map.lookup(&var), Some(&Item::Unresolved));
         self.map.insert(var, to);
+    }
+
+    /// Resolves the variable to a new functor, with the given name and arity
+    /// Used by functor/3
+    pub fn update_to_functor(&mut self, var: VarId, name: Spur, arity: usize) {
+        let next_var = &mut self.next_var;
+        let map = &mut self.map;
+        // SAFETY: see `new_var_of_functor`
+        unsafe {
+            let args = Self::alloc_functor_args(
+                &self.arena,
+                (0..arity).map(|_| {
+                    let new_var = VarId(*next_var);
+                    map.insert(new_var, Item::Unresolved);
+                    *next_var += 1;
+                    new_var
+                }),
+            );
+            let item = Item::Functor { name, args };
+            self.update(var, item)
+        }
     }
 
     pub fn backtrackable(&self) -> VarTable<'_> {

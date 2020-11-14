@@ -232,12 +232,9 @@ fn is(
         _ => panic!("Wrong number of arguments"),
     };
 
-    let value = compute(ctx, vars, eqn)?;
-    let var_of_value = vars.new_var_of(Item::Number(value));
+    let result = compute(ctx, vars, eqn)?;
 
-    // Could be manually inlined for extra speed if necessary -- we know it's a number but the
-    // compiler's unlikely to be able to figure that much out
-    State { ctx, vars, runner }.unify(var, var_of_value)
+    State { ctx, vars, runner }.unify_with_known(var, Item::Number(result))
 }
 
 /// `<`/2 -- `x < y` succeeds if `x` is less than `y`
@@ -308,11 +305,8 @@ fn cpu_time(
         .as_millis()
         .try_into()
         .unwrap();
-    let var_of_result = vars.new_var_of(Item::Number(result));
 
-    // Like `is`, this could be manually inlined
-    // But if `cpu_time` is your bottleneck, you're doing something very wrong
-    State { ctx, vars, runner }.unify(arg, var_of_result)
+    State { ctx, vars, runner }.unify_with_known(arg, Item::Number(result))
 }
 
 /// `call/n` -- add some extra args to a functor, then call it as the goal
@@ -341,6 +335,73 @@ fn call(
     }
 }
 
+/// `functor/3` -- give the name and arity of a functor
+fn functor(
+    ctx: &Context,
+    vars: &mut VarTable<'_>,
+    args: &[VarId],
+    runner: &mut dyn Runner,
+) -> SolverResult {
+    let (x, f, n) = match *args {
+        [x, f, n] => (x, f, n),
+        _ => panic!("Wrong number of arguments"),
+    };
+
+    match vars.lookup_with_varid(x) {
+        (_, Item::Var(_)) => panic!("got var from lookup"),
+        (_, Item::Number(_)) => {
+            log::trace!("functor/3: a number, not a functor");
+            Ok(Command::KeepGoing)
+        }
+        (_, Item::Functor { name, args }) => {
+            // Unify f with name, and n with args.len()
+
+            // Runner to unify n with args.len()
+            struct Temp<'a> {
+                n: VarId,
+                len: usize,
+                base: &'a mut dyn Runner,
+            }
+            impl Runner for Temp<'_> {
+                fn solution(&mut self, ctx: &Context, vars: &mut VarTable) -> SolverResult {
+                    State {
+                        ctx,
+                        vars,
+                        runner: self.base,
+                    }
+                    .unify_with_known(self.n, Item::Number(self.len as i64))
+                }
+            }
+
+            State {
+                ctx,
+                vars,
+                runner: &mut Temp {
+                    n,
+                    len: args.len(),
+                    base: runner,
+                },
+            }
+            .unify_with_known(f, Item::Functor { name, args: &[] })
+        }
+        (vx, Item::Unresolved) => {
+            // Make sure f and n are cool, then allocate new vars for args and resolve vx to
+            // Functor { f, args }
+            match (vars.lookup(f), vars.lookup(n)) {
+                (Item::Functor { name, args: &[] }, Item::Number(arity)) if arity >= 0 => {
+                    vars.update_to_functor(vx, name, arity as usize);
+                    runner.solution(ctx, vars)
+                }
+                _ => {
+                    // TODO: Different error depending on what it is
+                    // (instantiation error, type error)
+                    Err("functor/3: bad arguments".into())
+                }
+            }
+        }
+    }
+}
+
 pub fn builtins(rodeo: &mut Rodeo) -> HashMap<RelId, Relation> {
     [
         ("=", 2, unify as Builtin),
@@ -356,11 +417,13 @@ pub fn builtins(rodeo: &mut Rodeo) -> HashMap<RelId, Relation> {
         ("<", 2, less_than as Builtin),
         (">", 2, greater_than as Builtin),
         ("cpu_time", 1, cpu_time as Builtin),
+        ("functor", 3, functor as Builtin),
         // call takes any number of arguments, but unfortunately there's no great way to express
         // that rn
         ("call", 2, call as Builtin),
         ("call", 3, call as Builtin),
         ("call", 4, call as Builtin),
+        ("call", 5, call as Builtin),
     ]
     .iter()
     .map(|&(name, arity, action)| {
